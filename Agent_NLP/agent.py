@@ -15,7 +15,7 @@ class Agent_nlp:
                 base_url="http://195.209.210.28:8000/v1",
                 api_key="sk-no-key-required",  # No API key needed for local vLLM server
             )
-            pass
+
 
         def connect_openrouter_api():
             OPENROUTER_API_KEY ="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"

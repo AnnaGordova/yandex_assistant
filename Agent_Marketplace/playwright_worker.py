@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 from urllib.parse import quote_plus
-from Agent_Marketplace.config import ARTIFACTS_DIR
+from Agent_Marketplace.agent import ARTIFACTS_DIR
 from PIL import Image, ImageDraw
 from io import BytesIO
 

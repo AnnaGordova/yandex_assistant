@@ -1,1 +1,0 @@
-ARTIFACTS_DIR = "Agent_Marketplace/artifacts"
