@@ -8,18 +8,24 @@ class Agent_nlp:
         self.model = None
         self.system_prompt = TEXT_SYSTEM_PROMPT
 
-        def connect_yacloud_api():
+        def connect_vllm_api():
             """ Подключение к модели через yandex cloud (сделать как дадут доступ)"""
+            self.model = "QuantTrio/Qwen3-VL-30B-A3B-Instruct-AWQ"
+            self.client = OpenAI(
+                base_url="http://195.209.210.28:8000/v1",
+                api_key="sk-no-key-required",  # No API key needed for local vLLM server
+            )
             pass
 
         def connect_openrouter_api():
-            OPENROUTER_API_KEY ="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"
+            OPENROUTER_API_KEY ="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"
             OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
             MODEL_TEXT = "qwen/qwen2.5-vl-32b-instruct:free"
             self.client = OpenAI(base_url=OPENROUTER_BASE_URL, api_key=OPENROUTER_API_KEY)
             self.model = MODEL_TEXT
 
-        connect_openrouter_api()
+        #connect_openrouter_api()
+        connect_vllm_api()
 
     def generate(self, user_message, dialog_history=None):
         """
