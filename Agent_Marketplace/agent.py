@@ -1,11 +1,11 @@
 from openai import OpenAI
-#from Agent_NLP.system_prompt import TEXT_SYSTEM_PROMPT Поменять на свой систем промпт
+from Agent_Marketplace.system_prompt import SYSTEM_PROMPT
 class Agent_nlp:
     def __init__(self):
         """Конструктор класса агента, уточняющего запросы пользователя"""
         self.client = None
         self.model = None
-        #self.system_prompt = TEXT_SYSTEM_PROMPT поменять на свой систем промпт
+        self.system_prompt = SYSTEM_PROMPT 
 
         def connect_vllm_api():
             """ Подключение к модели через yandex cloud (сделать как дадут доступ)"""
