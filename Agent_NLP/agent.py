@@ -1,6 +1,8 @@
 from openai import OpenAI
 from Agent_NLP.system_prompt import TEXT_SYSTEM_PROMPT
 from Agent_NLP.utils import parse_agent_response
+
+
 class Agent_nlp:
     def __init__(self):
         """Конструктор класса агента, уточняющего запросы пользователя"""
@@ -26,6 +28,7 @@ class Agent_nlp:
 
         #connect_openrouter_api()
         connect_vllm_api()
+        print("Connected")
 
     def generate(self, user_message, dialog_history=None):
         """
