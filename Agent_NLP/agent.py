@@ -36,6 +36,7 @@ class Agent_nlp:
         dialog_history: список словарей [{'role':'user'/'assistant','content':...}, ...]
         Возвращает распарсенный объект (см. utils.parse_agent_response).
         """
+        print(dialog_history)
         messages = [{"role": "system", "content": TEXT_SYSTEM_PROMPT}]
         if dialog_history:
             # dialog_history ожидается в виде [{'role':...,'content':...}, ...]
@@ -69,7 +70,7 @@ class Agent_nlp:
                 dialog.append({"role": "assistant", "content": q})
                 dialog.append({"role": "user", "content": a})
 
-            parsed = self.generate("На основе диалога сформируй поисковую фразу, содержащую все параметры от пользователя (JSON {'status':'ok','query':['Например брюки синие 48 размера мужские']}).",
+            parsed = self.generate("На основе диалога сформируй поисковую фразу, содержащую все параметры от пользователя JSON.",
                 dialog_history=dialog)
         return parsed
 
