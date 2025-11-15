@@ -1,5 +1,7 @@
 from openai import OpenAI
 from Agent_Marketplace.system_prompt import SYSTEM_PROMPT
+from Agent_Marketplace.tools import click
+
 class Agent_marketplace:
     def __init__(self):
         """Конструктор класса агента, уточняющего запросы пользователя"""
@@ -16,3 +18,13 @@ class Agent_marketplace:
             )
 
         connect_vllm_api()
+
+    def start_browsing(self):
+        """Здесь будет логика хождения агента по браузеру, пока что тут просто один клик"""
+        screenshot_path = "Agent_Marketplace/main_screen.png"
+        user_query = "Найди координаты середины поискового запроса 'Найти товары'  в формате [x, y]. "  # КРИТИЧНО: строгий формат!
+
+        output_text, saved_path = click(
+            screenshot_path, user_query, self.client, self.model, output_image_path="Agent_Marketplace/artifacts/main_screen2.png"
+        )
+        return output_text, saved_path
