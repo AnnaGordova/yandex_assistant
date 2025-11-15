@@ -1,6 +1,6 @@
 from openai import OpenAI
 from Agent_Marketplace.system_prompt import SYSTEM_PROMPT
-class Agent_nlp:
+class Agent_marketplace:
     def __init__(self):
         """Конструктор класса агента, уточняющего запросы пользователя"""
         self.client = None
