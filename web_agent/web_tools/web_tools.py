@@ -1,410 +1,283 @@
-"""
-Web Agent — единый экземпляр Playwright-агента для работы с веб-страницами
-
-Возможности:
-- Открывает браузер и один раз загружает https://www.wildberries.ru/
-- Гарантирует «стабильное» состояние страницы (ждёт не только load, но и затухание динамических изменений DOM)
-- Делает скриншот текущего состояния страницы
-- Клик по координатам (x, y)
-- Ввод текста по координатам (x, y): сначала клик по (x, y), затем набор текста
-- Скроллит страницу
-- Ожидает указанное число миллисекунд
-"""
+# web_agent/web_tools/web_tools.py
 from __future__ import annotations
 
-import os
-import time
 from pathlib import Path
-from typing import Optional, Literal
+from typing import Optional, Tuple
+from datetime import datetime
 
-from playwright.sync_api import Playwright, sync_playwright, Browser, BrowserContext, Page, \
-    TimeoutError as PWTimeoutError, ViewportSize
+from playwright.sync_api import sync_playwright, Page, TimeoutError as PlaywrightTimeoutError
+
+from web_agent.web_tools.utils import _draw_click_marker, get_screen_size
+
+_WEB_AGENT_SINGLETON: Optional["WebAgent"] = None
+
+
 
 class WebAgent:
-    """Агент, создающий браузер с указанной страницей.
-
-    Параметры конструктора:
-      - headless: запускать ли браузер без UI (по умолчанию False — видимый браузер)
-      - url: ссылка на веб-страницу
-      - slow_mo_ms: замедление операций (мс) для наглядности
-      - viewport: кортеж (width, height) или None для системного размера окна
-      - screenshot_path: путь для сохранения скриншотов
+    """
+    Обёртка над Playwright для управления браузером + набор действий,
+    которые используют tools из web_tools/__init__.py
     """
 
     def __init__(
         self,
-        headless: bool = True,
+        headless: bool = False,
         url: str = "https://market.yandex.ru/",
         slow_mo_ms: int = 1000,
-        viewport: Optional[tuple[int, int]] = (1366, 900),
+        viewport: Tuple[int, int] = None,
         user_agent: Optional[str] = None,
-        screenshot_path: Path = Path("screenshots"),
-    ) -> None:
-        self._playwright_cm = sync_playwright()
-        self._pw: Playwright = self._playwright_cm.__enter__()
-        self._browser: Browser | None = None
-        self._context: BrowserContext | None = None
-        self._page: Page | None = None
-        self.url = url
-        self.screenshot_path = screenshot_path
+        screenshot_path: Path = Path("web_agent/screenshots"),
+        browser_type: str = "chromium",
+    ):
+        self.headless = headless
+        self.start_url = url
+        self.slow_mo_ms = slow_mo_ms
+        self.viewport = viewport
+        self.user_agent = user_agent
+        self.screenshot_path = Path(screenshot_path)
+        self.screenshot_path.mkdir(parents=True, exist_ok=True)
 
-        self._browser = self._pw.chromium.launch(
-            headless=headless,
-            slow_mo=slow_mo_ms or 0,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--disable-extensions",
-                "--no-default-browser-check",
-                "--disable-notifications",
-            ],
-        )
+        # --- стартуем Playwright и выбираем движок ---
+        self._playwright = sync_playwright().start()
 
-        context_args = dict(
-            locale="ru-RU",
-            timezone_id="Europe/Moscow",
-            ignore_https_errors=True,
-        )
-        if viewport:
-            context_args["viewport"] = ViewportSize(width=viewport[0], height=viewport[1])
+        bt = browser_type.lower()
+        browser_factory = {
+            "chromium": self._playwright.chromium,
+            "chrome": self._playwright.chromium,
+            "edge": self._playwright.chromium,
+            "firefox": self._playwright.firefox,
+            "webkit": self._playwright.webkit,
+        }.get(bt, self._playwright.chromium)
 
-        if user_agent:
-            context_args["user_agent"] = user_agent
+        launch_kwargs = {
+            "headless": self.headless,
+            "slow_mo": self.slow_mo_ms,
+        }
 
-        self._context = self._browser.new_context(**context_args)
-        self._page = self._context.new_page()
+        self._browser = browser_factory.launch(**launch_kwargs)
+        print("browser launched")
+        if self.viewport is None:
+            self.viewport = get_screen_size()
+        w, h = self.viewport
+        print(f"viewport size: {w}x{h}")
+        context_kwargs = {
+            "viewport": {"width": w, "height": h},
+        }
+        if self.user_agent:
+            context_kwargs["user_agent"] = self.user_agent
 
-        self._page.goto(self.url, wait_until="domcontentloaded")
-        self.wait_until_stable(max_wait_ms=1000)
+        self._context = self._browser.new_context(**context_kwargs)
+        self.page: Page = self._context.new_page()
 
-    # --------------------------- Публичные операции ---------------------------
-    @property
-    def page(self) -> Page:
-        assert self._page is not None, "Страница ещё не инициализирована или агент закрыт"
-        return self._page
+        # НЕ ждём networkidle, иначе Яндекс может вечно грузиться
+        self.page.goto(self.start_url, wait_until="domcontentloaded", timeout=15000)
+        print("start page opened:", self.start_url)
 
-    def wait_until_stable(self, max_wait_ms: int = 500, dom_quiet_ms: int = 500) -> None:
-        """Ждёт «стабилизацию» страницы — не только load, но и паузу DOM-мутаций.
+    # ---------- служебное ----------
 
-        Алгоритм:
-          1) domcontentloaded
-          2) load
-          3) networkidle (best-effort)
-          4) тишина DOM (мутаций нет подряд dom_quiet_ms)
-        """
-        p = self.page
-        deadline = time.time() + max_wait_ms / 1000
+    def _make_screenshot_path(self, prefix: str = "ym") -> Path:
+        ts = datetime.now().strftime("%Y%m%d-%H_%M_%S")
+        filename = f"ym-{ts}-{prefix}.png"
+        return self.screenshot_path / filename
 
-        def _remaining() -> int:
-            return max(0, int((deadline - time.time()) * 1000))
+    def screenshot(self, prefix: str = "ym") -> Path:
+        path = self._make_screenshot_path(prefix)
+        self.page.screenshot(path=str(path), full_page=False)
+        return path
 
+    def close(self):
         try:
-            p.wait_for_load_state("domcontentloaded", timeout=_remaining())
-        except PWTimeoutError:
+            self._context.close()
+        except Exception:
             pass
         try:
-            p.wait_for_load_state("load", timeout=_remaining())
-        except PWTimeoutError:
+            self._browser.close()
+        except Exception:
             pass
-        # networkidle может не наступить из-за веб-сокетов; делаем best-effort
         try:
-            p.wait_for_load_state("networkidle", timeout=min(1000, _remaining()))
-        except PWTimeoutError:
+            self._playwright.stop()
+        except Exception:
             pass
-        # Тишина DOM (MutationObserver):
-        self._wait_for_dom_quiet(quiet_ms=dom_quiet_ms, timeout_ms=_remaining())
 
-    def screenshot(self, screenshot_path: Optional[str | os.PathLike] = None, full_page: bool = False) -> Path:
-        """Сохраняет скриншот страницы и возвращает путь к файлу."""
-        p = self.page
-        out_path = self._ensure_path(screenshot_path)
-        self.wait_until_stable()
-        p.screenshot(path=str(out_path), full_page=full_page, type="png")
-        return out_path
+    # ---------- действия, которые вызывают tools ----------
 
     def click_and_screenshot(
-        self,
-        x: int,
-        y: int,
-        screenshot_path: Optional[str | os.PathLike] = None,
-        button: Literal["left", "right", "middle"] = "left",
-        click_count: int = 1,
-        full_page: bool = False,
+            self,
+            x: int,
+            y: int,
+            button: str = "left",
+            click_count: int = 1,
     ) -> Path:
-        """Кликает мышью по координатам (x, y) в области страницы и делает скриншот.
-
-        - Координаты указываются относительно видимой области страницы (viewport).
-        - button: 'left' | 'right' | 'middle'
-        - click_count: количество кликов (1 — обычный клик, 2 — даблклик)
         """
-        p = self.page
-        # Клик по координатам
-        p.mouse.click(x, y, button=button, click_count=click_count)
-        # Навигация/динамика после клика
-        self.wait_until_stable()
-        return self.screenshot(screenshot_path, full_page=full_page)
+        x, y – координаты в диапазоне [0, 1000] относительно ТЕКУЩЕГО viewport’а.
+        Если сайт открыл карточку в новой вкладке, мы берём её URL,
+        закрываем новую вкладку и переходим на этот URL в текущей.
+        """
+        # Нормализуем вход
+        x = max(0, min(1000, int(x)))
+        y = max(0, min(1000, int(y)))
+
+        # Берём реальный размер viewport’а
+        vp = self.page.viewport_size
+        if vp is None:
+            vp = {
+                "width": self.page.evaluate("() => window.innerWidth"),
+                "height": self.page.evaluate("() => window.innerHeight"),
+            }
+        vw, vh = vp["width"], vp["height"]
+
+        px = int(vw * x / 1000)
+        py = int(vh * y / 1000)
+
+        new_page = None
+        try:
+            # Пытаемся поймать popup (новую вкладку)
+            with self._context.expect_page(timeout=2000) as new_page_info:
+                self.page.mouse.click(px, py, button=button, click_count=click_count)
+            new_page = new_page_info.value
+        except PlaywrightTimeoutError:
+            # Никакой новой вкладки не появилось — обычный клик
+            self.page.mouse.click(px, py, button=button, click_count=click_count)
+
+        if new_page is not None:
+            # Карточка открылась в новой вкладке: забираем URL и закрываем её
+            try:
+                new_page.wait_for_load_state("domcontentloaded", timeout=15000)
+            except PlaywrightTimeoutError:
+                pass
+
+            target_url = new_page.url
+            try:
+                new_page.close()
+            except Exception:
+                pass
+
+            # Переходим на этот же URL в текущей вкладке
+            if target_url:
+                try:
+                    self.page.goto(target_url, wait_until="domcontentloaded", timeout=15000)
+                except PlaywrightTimeoutError:
+                    pass
+        else:
+            # Навигация в той же вкладке (или просто клик без навигации)
+            try:
+                self.page.wait_for_load_state("domcontentloaded", timeout=5000)
+            except PlaywrightTimeoutError:
+                pass
+
+        path = self.screenshot(prefix="click")
+        _draw_click_marker(path, px, py)
+        return path
 
     def fill_and_screenshot(
         self,
         text: str,
-        x: int = None,
-        y: int = None,
-        screenshot_path: Optional[str | os.PathLike] = None,
-        press_enter: bool = False,
-        typing_delay_ms: int = 10,
+        press_enter: bool = True,
         clear_before: bool = True,
-        full_page: bool = False,
     ) -> Path:
-        """Кликает по координатам (x, y) для фокуса, вводит текст с клавиатуры и делает скриншот.
-
-        - Координаты указываются относительно viewport.
-        - clear_before: Ctrl+A + Delete перед вводом
-        - press_enter: нажать Enter после ввода (например, для поиска)
-        - typing_delay_ms: задержка между символами (мс) при наборе
         """
-        p = self.page
-        # Валидация координат относительно viewport (если он задан)
-        if x is not None and y is not None:
-            try:
-                vs = p.viewport_size
-                if vs is not None:
-                    vw, vh = vs.get("width", 0), vs.get("height", 0)
-                    if x < 0 or y < 0 or x >= vw or y >= vh:
-                        raise ValueError(f"Coordinates out of viewport: ({x},{y}) not in [0..{vw - 1}]x[0..{vh - 1}]")
-            except Exception:
-                # Не прерываем — Playwright сам сообщит об ошибке, если координаты некорректны
-                pass
-
-            # 1) Клик по координатам, чтобы сфокусировать поле
-            p.mouse.click(x, y)
-            p.wait_for_timeout(300)
-
-        # 2) Опциональная очистка: Ctrl+A + Delete
+        Печатает текст в текущий сфокусированный инпут.
+        Перед этим (опционально) очищает его.
+        """
         if clear_before:
-            try:
-                p.keyboard.press("Control+A")
-                p.keyboard.press("Delete")
-            except Exception:
-                pass
+            # Ctrl+A, Delete
+            self.page.keyboard.press("Control+A")
+            self.page.keyboard.press("Delete")
 
-        # 3) Ввод текста
-        if text:
-            p.keyboard.type(text, delay=max(0, typing_delay_ms))
+        self.page.keyboard.type(text)
 
-        # 4) Опционально нажать Enter
         if press_enter:
-            p.keyboard.press("Enter")
+            self.page.keyboard.press("Enter")
 
-        # 5) Подождать стабилизацию и сделать скриншот
-        self.wait_until_stable()
-        return self.screenshot(screenshot_path, full_page=full_page)
+        return self.screenshot(prefix="type")
 
     def scroll_and_screenshot(
         self,
         delta_x: int = 0,
-        delta_y: int = 800,
-        screenshot_path: Optional[str | os.PathLike] = None,
-        full_page: bool = False,
+        delta_y: int = 1000,
     ) -> Path:
-        """Скроллит страницу и делает скриншот.
-
-        - delta_x: Скролл по X
-        - delta_y: Скролл по Y
         """
-        p = self.page
-        p.mouse.wheel(delta_x, delta_y)
-        self.wait_until_stable()
-        return self.screenshot(screenshot_path, full_page=full_page)
-
-    def wait(
-        self,
-        ms: int = 1000,
-        screenshot_path: Optional[str | os.PathLike] = None,
-        full_page: bool = False,
-    ) -> Path:
-        """Ожидание и скриншот.
-
-        - ms: Время в миллисекундах для ожидания
+        Скроллит страницу и делает скриншот.
+        delta_y > 0 – вниз, <0 – вверх (аналог wheel).
         """
-        p = self.page
-        p.wait_for_timeout(ms)
-        return self.screenshot(screenshot_path, full_page=full_page)
+        self.page.evaluate(
+            "(args) => { window.scrollBy(args.dx, args.dy); }",
+            {"dx": int(delta_x), "dy": int(delta_y)},
+        )
+        return self.screenshot(prefix="scroll")
 
-    def go_back_and_screenshot(
-            self,
-            screenshot_path: Optional[str | os.PathLike] = None,
-            full_page: bool = False,
-    ) -> Path:
-        """Возвращается на предыдущую страницу браузера и делает скриншот.
+    def wait(self, ms: int = 1000) -> Path:
+        self.page.wait_for_timeout(ms)
+        return self.screenshot(prefix="wait")
 
-        - wait_until: событие загрузки страницы перед скрином.
-        """
-        p = self.page
-        p.go_back()
-
-        if self.url not in p.url:
-            p.goto(self.url)
-
-        self.wait_until_stable()
-        return self.screenshot(screenshot_path, full_page=full_page)
+    def go_back_and_screenshot(self) -> Path:
+        try:
+            self.page.go_back(wait_until="domcontentloaded", timeout=15000)
+        except Exception:
+            # если назад нельзя – просто остаёмся
+            pass
+        return self.screenshot(prefix="back")
 
     def get_current_url(self) -> str:
-        """Возвращает текущий URL страницы."""
         return self.page.url
 
     def zoom_bbox_and_screenshot(
-            self,
-            x: int,
-            y: int,
-            width: int,
-            height: int,
-            screenshot_path: Optional[str | os.PathLike] = None,
+        self,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
     ) -> Path:
         """
-        Приближает область (bbox) так, чтобы она заполняла весь viewport, и делает скриншот.
-
-        Координаты bbox — в рамках текущего viewport.
+        "Зум" области: вырезаем прямоугольник и возвращаем скрин только этой области.
+        Все координаты в [0, 1000] относительно viewport.
         """
-        p = self.page
+        vw, vh = self.viewport
+        px = vw * x / 1000.0
+        py = vh * y / 1000.0
+        pw = vw * width / 1000.0
+        ph = vh * height / 1000.0
 
-        # Получаем текущее окно
-        viewport = p.viewport_size
-        if viewport is None:
-            vpw = p.evaluate("() => window.innerWidth")
-            vph = p.evaluate("() => window.innerHeight")
-        else:
-            vpw = viewport["width"]
-            vph = viewport["height"]
-
-        # Вычисляем масштаб
-        scale = min(vpw / width, vph / height)
-
-        # Координаты bbox -> сдвигаем страницу так, чтобы bbox оказался в (0, 0) перед масштабированием
-        # То есть мы смещаем body, чтобы левая верхняя точка bbox была в углу экрана.
-        translate_x = -x
-        translate_y = -y
-
-        # Устанавливаем масштаб и сдвиг
-        p.evaluate(
-            """({scale, tx, ty}) => {
-                const body = document.body;
-                body.style.transformOrigin = '0 0';
-                body.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
-            }""",
-            {"scale": scale, "tx": translate_x, "ty": translate_y},
+        path = self._make_screenshot_path(prefix="zoom")
+        self.page.screenshot(
+            path=str(path),
+            clip={"x": px, "y": py, "width": pw, "height": ph},
         )
-
-        self.wait_until_stable()
-        path = self.screenshot(screenshot_path, full_page=False)
-
-        # Восстанавливаем нормальный масштаб
-        p.evaluate("""() => { document.body.style.transform = 'none'; }""")
         return path
 
-    def close(self) -> None:
-        """Закрыть страницу/контекст/браузер и Playwright."""
-        try:
-            if self._page:
-                self._page.close()
-        except Exception:
-            pass
-        try:
-            if self._context:
-                self._context.close()
-        except Exception:
-            pass
-        try:
-            if self._browser:
-                self._browser.close()
-        except Exception:
-            pass
-        try:
-            if self._playwright_cm:
-                self._playwright_cm.__exit__(None, None, None)
-        except Exception:
-            pass
-        finally:
-            self._page = None
-            self._context = None
-            self._browser = None
 
-    def _wait_for_dom_quiet(self, quiet_ms: int = 800, timeout_ms: int = 10000) -> None:
-        """Ожидание «тишины» DOM — отсутствия мутаций в течение quiet_ms подряд.
-
-        Реализовано через MutationObserver внутри страницы.
-        """
-        if timeout_ms <= 0:
-            return
-        try:
-            self.page.evaluate(
-                """
-                (quietMs, timeoutMs) => {
-                  return new Promise((resolve) => {
-                    let done = false;
-                    const cleanup = () => { if (!done) { done = true; observer.disconnect(); clearTimeout(timeout); resolve(true); } };
-                    const observer = new MutationObserver(() => {
-                      clearTimeout(quietTimer);
-                      quietTimer = setTimeout(cleanup, quietMs);
-                    });
-                    observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
-                    // Если мутаций нет — всё равно сработает через quietMs
-                    let quietTimer = setTimeout(cleanup, quietMs);
-                    const timeout = setTimeout(cleanup, timeoutMs);
-                  });
-                }
-                """,
-                quiet_ms,
-            )
-        except Exception:
-            pass
-
-    def _ensure_path(self, screenshot_path: Optional[str | os.PathLike]) -> Path:
-        if screenshot_path:
-            p = Path(screenshot_path)
-            p.parent.mkdir(parents=True, exist_ok=True)
-            if p.suffix.lower() not in (".png", ".jpg", ".jpeg", ".webp"):
-                p = p.with_suffix(".png")
-            return p
-        else:
-            self.screenshot_path.mkdir(parents=True, exist_ok=True)
-            ts = time.strftime("%Y%m%d-%H%M%S")
-            return self.screenshot_path / f"ym-{ts}.png"
-
-
-# --------------------------- Модульный синглтон ---------------------------
-_agent_singleton: Optional[WebAgent] = None
-
+# ---------- singleton-хелперы, которые дергает __init__.py ----------
 
 def get_agent(
     headless: bool = False,
     url: str = "https://market.yandex.ru/",
-    slow_mo_ms: int = 1000,
-    viewport: Optional[tuple[int, int]] = (1000, 1000),
+    slow_mo_ms: int = 0,
+    viewport: Optional[Tuple[int, int]] = None,
     user_agent: Optional[str] = None,
-    screenshot_path: Path = Path("web-tools/screenshots"),
+    screenshot_path: Path = Path("web_agent/screenshots"),
+    browser_type: str = "chromium",
 ) -> WebAgent:
-    """Возвращает единый экземпляр агента (создаётся при первом вызове).
+    global _WEB_AGENT_SINGLETON
 
-    Повторные вызовы возвращают уже созданный экземпляр, тем самым браузер/страница
-    используются повторно в рамках процесса Python.
-    """
-    global _agent_singleton
-    if _agent_singleton is None:
-        _agent_singleton = WebAgent(
+    if viewport is None:
+        # если вдруг не передали – на всякий случай зададим дефолт
+        viewport = (1920, 1080)
+
+    if _WEB_AGENT_SINGLETON is None:
+        _WEB_AGENT_SINGLETON = WebAgent(
             headless=headless,
             url=url,
             slow_mo_ms=slow_mo_ms,
             viewport=viewport,
             user_agent=user_agent,
             screenshot_path=screenshot_path,
+            browser_type=browser_type,
         )
-    return _agent_singleton
+    return _WEB_AGENT_SINGLETON
 
 
 def close_agent() -> None:
-    """Явно закрыть singleton-агента и освободить ресурсы."""
-    global _agent_singleton
-    if _agent_singleton is not None:
-        try:
-            _agent_singleton.close()
-        finally:
-            _agent_singleton = None
+    global _WEB_AGENT_SINGLETON
+    if _WEB_AGENT_SINGLETON is not None:
+        _WEB_AGENT_SINGLETON.close()
+        _WEB_AGENT_SINGLETON = None
