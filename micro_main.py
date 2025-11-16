@@ -1,7 +1,5 @@
-from Agent_Marketplace.agent import Agent_marketplace
+from web_agent.agent import init_agent, run_agent
 
 if __name__ == '__main__':
-    agent_researcher = Agent_marketplace()
-    result_x_y, path = agent_researcher.start_browsing()
-    print(result_x_y)
-    print(path)
+    agent = init_agent()
+    run_agent(query="{'query': 'мужские плавки L', 'filters': {'sex': 'male', 'size': 'L', 'min_price': None, 'max_price': None}, 'extra': 'предназначены для поездки на море, нужна удобная и быстросохнущая ткань'}")

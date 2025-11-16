@@ -55,20 +55,19 @@ class Agent_nlp:
     def start_dialog(self):
         dialog = []
         parsed = self.generate("Поздоровайся с пользователем и спроси, как ты можешь ему помочь", dialog_history=dialog)
-        print(parsed['questions'][0])
-        dialog.append({"role": "assistant", "content": parsed['questions'][0]})
+        print(parsed['questions'])
+        dialog.append({"role": "assistant", "content": parsed['questions']})
 
         user_query = input("\nQ: ")
         parsed = self.generate(user_query, dialog_history=dialog)
         dialog.append({"role": "user", "content": user_query})
 
         while parsed['status'] == 'questions':
-            questions = parsed.get("questions", [])
-            for q in questions:
-                print("\nQ:", q)
-                a = input("A: ").strip()
-                dialog.append({"role": "assistant", "content": q})
-                dialog.append({"role": "user", "content": a})
+            questions = parsed.get("questions", '')
+            print("\nQ:", questions)
+            a = input("A: ").strip()
+            dialog.append({"role": "assistant", "content": questions})
+            dialog.append({"role": "user", "content": a})
 
             parsed = self.generate("На основе диалога сформируй поисковую фразу, содержащую все параметры от пользователя JSON.",
                 dialog_history=dialog)
