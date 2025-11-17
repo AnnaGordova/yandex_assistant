@@ -13,7 +13,7 @@ class Agent_nlp:
         self.system_prompt = TEXT_SYSTEM_PROMPT
 
         def connect_vllm_api():
-            self.model = "QuantTrio/Qwen3-VL-30B-A3B-Instruct-AWQ"
+            self.model = "QuantTrio/Qwen3-VL-32B-Instruct-AWQ"
             self.client = OpenAI(
                 base_url="http://195.209.210.28:8000/v1",
                 api_key="sk-no-key-required",

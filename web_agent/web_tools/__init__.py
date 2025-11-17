@@ -1,10 +1,11 @@
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
 import json5
 from qwen_agent.llm.schema import ContentItem
 
 from .web_tools import WebAgent, get_agent, close_agent
 from qwen_agent.tools.base import BaseTool, register_tool
+
 
 def init_session(
         headless: bool = False,
@@ -15,7 +16,6 @@ def init_session(
         screenshot_path: Path = Path("web-tools/screenshots"),
         browser_type="chromium"
 ) -> WebAgent:
-
     agent = get_agent(
         headless=headless, url=url, slow_mo_ms=slow_mo_ms, viewport=viewport, user_agent=user_agent,
         screenshot_path=screenshot_path
@@ -23,10 +23,13 @@ def init_session(
 
     return agent
 
+
 def close_session() -> None:
     close_agent()
 
-RESULT_STORE: list[dict] = []
+
+RESULT_STORE: Dict[int, dict] = {}
+
 
 @register_tool("set_price_filter")
 class SetPriceFilterTool(BaseTool):
@@ -61,78 +64,141 @@ class SetPriceFilterTool(BaseTool):
 @register_tool("save_candidate")
 class SaveCandidateTool(BaseTool):
     description = (
-        "Сохраняет текущую карточку товара как кандидата: "
-        "URL + краткое текстовое описание, почему она подходит."
+        "Save the currently opened product page as a candidate under a given index. "
+        "This tool performs an UPSERT for that index: if a candidate with this index already exists, "
+        "it will be overwritten.\n"
+        "For each candidate, the tool stores:\n"
+        "- product_name: product title used to locate the image on the page,\n"
+        "- url: current product page URL (taken automatically),\n"
+        "- image_url: URL of the product image (if found),\n"
+        "- description: a JSON object with detailed product attributes (price, size, rating, etc.)."
     )
+
     parameters = [
+        {
+            "name": "index",
+            "type": "integer",
+            "required": True,
+            "description": (
+                "Position of the product in the candidate list (1, 2, 3, ...). "
+                "Reuse the same index to REPLACE an existing product."
+            )
+        },
         {
             "name": "description",
             "type": "string",
             "required": True,
-            "description": "Короткое описание/пояснение, зачем этот товар выбран.",
+            "description": (
+                "JSON string with a structured description of the product. "
+                "It SHOULD include fields like price, rating, reviews, size, color, fabric, "
+                "and a 'reason' explaining why this product fits the user request."
+            ),
         },
+        {
+            "name": "product_name",
+            "type": "string",
+            "required": True,
+            "description": (
+                "Visible product name on the page (the bold text near the image). "
+                "Used to find the correct product image URL."
+            ),
+        }
     ]
 
     def call(self, params: str, **kwargs) -> List[ContentItem]:
         args = json5.loads(params) if params else {}
-        description = args.get("description", "")
+        index = int(args.get("index", len(RESULT_STORE) + 1))
+        raw_description = args.get("description", "")
+        product_name = args.get("product_name", "")
+
+        # 1) Парсим description из строки в объект
+        if isinstance(raw_description, str):
+            try:
+                description_parsed = json5.loads(raw_description)
+            except Exception:
+                # если модель отдала невалидный json – сохраняем как raw
+                description_parsed = {"raw": raw_description}
+        else:
+            # на случай, если модель вдруг пришлёт уже объект
+            description_parsed = raw_description
 
         agent = get_agent()
+
+        # 2) Пытаемся получить image_url, но НЕ падаем, если что-то пошло не так
+        image_url = None
+        try:
+            if product_name:
+                image_url = agent.return_image_url(card_name=product_name)
+        except Exception as e:
+            # тут можешь залогировать, если хочешь
+            # logger.warning("return_image_url failed for %r: %s", product_name, e)
+            image_url = None
+
         url = agent.get_current_url()
 
-        RESULT_STORE.append(
-            {
-                "url": url,
-                "description": description,
-            }
-        )
+        RESULT_STORE[index] = {
+            "product_name": product_name,
+            "url": url,
+            "image_url": image_url,
+            "description": description_parsed,
+        }
 
-        # Можно ещё сделать скрин результата:
-        # screenshot_path = agent.screenshot(prefix="result")
-        # и тоже сохранить в RESULT_STORE при желании.
+        return [ContentItem(text=f"Saved candidate #{index}: {product_name} - {url}")]
 
-        idx = len(RESULT_STORE)
-        return [ContentItem(text=f"Saved candidate #{idx}: {url}")]
+
+
 @register_tool("click")
 class ClickTool(BaseTool):
     description = (
-        "Clicks at given X,Y coordinates with left/right/middle button and optional double click. "
-        "Returns a screenshot after the action."
-        "FORMAT: {'x': int, 'y': int}"
+        "Click on a specific point on the page using viewport coordinates."
+        "- pass 'x' and 'y' explicitly in the JSON object."
+        "- The JSON MUST be valid, for example: "
+        "{'x': 130, 'y': 819, 'button': 'left', 'click_count': 1}."
+        "- Use this tool only when you see on the screenshot where you want to click."
+        "The tool returns a screenshot after performing the click."
     )
     parameters = [
         {
             'name': 'x',
             'type': 'integer',
-            'description': 'X coordinate in CSS pixels from 0 to 1000.',
+            'description': (
+                "X coordinate of the click position in viewport coordinates (0–1000). "
+                "0 is the left edge, 1000 is the right edge."
+            ),
             'required': True
         },
         {
             'name': 'y',
             'type': 'integer',
-            'description': 'Y coordinate in CSS pixels from 0 to 1000.',
+            'description': (
+                "Y coordinate of the click position in viewport coordinates (0–1000). "
+                "0 is the top edge, 1000 is the bottom edge."
+            ),
             'required': True
         },
         {
             'name': 'button',
             'type': 'string',
-            'description': "Mouse button to click: 'left', 'right', or 'middle'.",
+            'description': (
+                "Mouse button to use for the click. "
+                "Allowed values: 'left' (default), 'right', 'middle'."
+            ),
             'required': False
         },
         {
             'name': 'click_count',
             'type': 'integer',
-            'description': 'Number of clicks: 1 for single click, 2 for double click.',
+            'description': (
+                "Number of times to click at the given position: "
+                "1 for a single click (default), 2 for a double click."
+            ),
             'required': False
         },
     ]
 
     def call(self, params: str, **kwargs) -> List[ContentItem]:
         args = json5.loads(params)
-        if isinstance(args['x'], list):
-            x, y = args['x']
-        else:
-            x, y = int(args['x']), int(args['y'])
+        x, y = int(args['x']), int(args['y'])
         button = args.get('button', 'left')
         click_count = args.get('click_count', 1)
 
@@ -236,6 +302,7 @@ class WaitTool(BaseTool):
         path = agent.wait(ms=ms)
         return [ContentItem(image=str(path))]
 
+
 @register_tool("go_back")
 class GoBackTool(BaseTool):
     description = "Goes back to the previous page in browser history and returns a screenshot."
@@ -246,6 +313,7 @@ class GoBackTool(BaseTool):
         path = agent.go_back_and_screenshot()
         return [ContentItem(image=str(path))]
 
+
 @register_tool("get_current_url")
 class GetCurrentURL(BaseTool):
     description = "Returns the current URL of the webpage."
@@ -254,6 +322,7 @@ class GetCurrentURL(BaseTool):
     def call(self, params: str, **kwargs) -> List[ContentItem]:
         agent = get_agent()
         return [ContentItem(text=agent.get_current_url())]
+
 
 @register_tool("zoom")
 class Zoom(BaseTool):
@@ -302,11 +371,11 @@ class Zoom(BaseTool):
         return [ContentItem(image=str(path))]
 
 
-@register_tool ("return_image_url")
+@register_tool("return_image_url")
 class ReturnImageUrl(BaseTool):
     description = "Returns the url of the product card image by its name."
 
-    parameters =[
+    parameters = [
         {
             "name": "product_name",
             "type": "string",
@@ -318,7 +387,7 @@ class ReturnImageUrl(BaseTool):
     def call(self, params: str, **kwargs) -> List[ContentItem]:
         args = json5.loads(params) if params else {}
         agent = get_agent()
-        return [ContentItem(text=agent.return_image_url(name = args.name))]
+        return [ContentItem(text=agent.return_image_url(name=args.name))]
 
 
 def make_web_tools(agent: WebAgent | None = None) -> list[BaseTool]:
@@ -339,6 +408,7 @@ def make_web_tools(agent: WebAgent | None = None) -> list[BaseTool]:
         SetPriceFilterTool(),
         ReturnImageUrl(),
     ]
+
 
 def get_saved_candidates(clear: bool = True) -> list[dict]:
     global RESULT_STORE

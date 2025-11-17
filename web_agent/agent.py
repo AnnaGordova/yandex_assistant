@@ -32,7 +32,7 @@ _web_agent_singleton: Optional[WebAgent] = None
 # минимальный интервал между полными прогонками агента
 MIN_INTERVAL_BETWEEN_RUNS = 10.0    # секунд
 # задержка между действиями браузера (playwright slow_mo)
-DEFAULT_SLOW_MO_MS = 500          # мс
+DEFAULT_SLOW_MO_MS = 1000          # мс
 
 def init_agent(show_browser: bool = True):
     """
@@ -61,9 +61,10 @@ def get_agents(show_browser: bool = True):
 
     return _agent_singleton, _web_agent_singleton
 
-def run_agent(query: str, messages: List = None):
+def run_agent(query: str, messages: List | None = None):
     """
     Запуск агента с заданной историей сообщений и входным запросом.
+    Возвращает (plain_text, updated_messages).
     """
     agent, web_agent = get_agents(show_browser=True)
 
@@ -78,11 +79,13 @@ def run_agent(query: str, messages: List = None):
         ]}
     ]
 
-    # TODO подумать как возвращать ответ и размышления агента
     response_plain_text = ''
+    final_messages = None
+
     for ret_messages in agent.run(messages):
+        # ret_messages — это полная история диалога для текущего шага
+        final_messages = ret_messages
         response_plain_text = multimodal_typewriter_print(ret_messages, response_plain_text)
 
-    close_session()
-
-    return response_plain_text
+    # НЕ закрываем сессию здесь
+    return response_plain_text, final_messages

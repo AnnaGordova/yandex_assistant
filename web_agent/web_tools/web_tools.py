@@ -60,6 +60,7 @@ class WebAgent:
             self.viewport = get_screen_size()
         w, h = self.viewport
         print(f"viewport size: {w}x{h}")
+        print(f"set slowmo: {slow_mo_ms} ms")
         context_kwargs = {
             "viewport": {"width": w, "height": h},
         }
