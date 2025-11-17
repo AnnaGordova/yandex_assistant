@@ -1,6 +1,7 @@
 # web_agent/web_tools/web_tools.py
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Optional, Tuple
 from datetime import datetime
@@ -259,19 +260,55 @@ class WebAgent:
         )
         return path
 
-    def return_image_url(self, card_name):
+    def return_image_url(self, card_name: str) -> str | None:
         """
-        Находит изображение на текущей странице по тексту в alt и возвращает его URL.
+        Находит URL изображения карточки по названию товара.
+
+        Логика:
+        - нормализуем название и alt: нижний регистр, ё -> е, убираем все кроме латиницы/кириллицы и цифр;
+        - ищем <img> с alt, у которого нормализованный alt начинается
+          с нормализованного card_name;
+        - возвращаем src первого подходящего изображения или None.
         """
+
+        safe_name = json.dumps(card_name)  # экранируем строку для JS
+
         js_code = f"""
-        () => {{
-            // Ищем изображение, в alt которого есть указанный текст
-            const img = Array.from(document.querySelectorAll('img[alt*="{card_name}"]'))[0];
-            return img.src;     
-        }}
-        """
-        img_url = self.page.evaluate(js_code)
-        return img_url
+           () => {{
+               const original = {safe_name};
+
+               function normalize(str) {{
+                   return (str || '')
+                       .toLowerCase()
+                       .replace(/ё/g, 'е')
+                       // оставляем латиницу, кириллицу и цифры, остальное выбрасываем
+                       .replace(/[^a-z0-9а-я]+/g, '');
+               }}
+
+               const target = normalize(original);
+               if (!target) return null;
+
+               const imgs = Array.from(document.querySelectorAll('img[alt][src]'));
+               let best = null;
+
+               for (const img of imgs) {{
+                   const alt = img.getAttribute('alt') || '';
+                   const altNorm = normalize(alt);
+                   if (!altNorm) continue;
+
+                   // проверяем, что НОРМАЛИЗОВАННЫЙ alt начинается
+                   // с НОРМАЛИЗОВАННОГО имени товара
+                   if (altNorm.slice(0, target.length) === target) {{
+                       best = img;
+                       break;
+                   }}
+               }}
+
+               return best ? best.src : null;
+           }}
+           """
+
+        return self.page.evaluate(js_code)
 
     def set_price_filter(self, min_price: int | None, max_price: int | None) -> Path:
         """

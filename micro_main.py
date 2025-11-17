@@ -15,16 +15,15 @@ def interactive_dialog():
     print("Пиши запросы. Чтобы выйти, введи: stop\n")
 
     history_text = ""  # сюда будем складывать текстовую историю диалога
-    user_input = """
-    {
-      "query": "телевизор для кухни, 32 дюйма, дешевый, с поддержкой Smart TV",
+    user_input = """{
+      "query": "гавайская рубашка мужская",
       "filters": {
-        "sex": null,
-        "size": null,
-        "min_price": null,
-        "max_price": 15000
+        "sex": "male",
+        "size": "L",
+        "min_price": 700,
+        "max_price": 2000
       },
-      "extra": "нужен недорогой телевизор 32 дюйма, с функцией Smart TV (чтобы можно было смотреть телевизор и интернет-контент), без дополнительных требований к дизайну, качеству звука и другим функциям"
+      "extra": "для пляжа, стиль гавайская рубашка, комфортная, подходит для отдыха на море"
     }"""
     try:
         while True:
@@ -39,10 +38,10 @@ def interactive_dialog():
                 user_query=user_input,
                 history_text=history_text or None,
             )
-
-            print("\n\n\nA:", response_text)
             print("-" * 60)
             print(get_saved_candidates())
+            print("\n\n\nA:", response_text)
+            print("-" * 60)
             # Дописываем в историю последнюю реплику
             history_text += f"\nU: {user_input}\nA: {response_text}\n"
             if len(history_text) > MAX_HISTORY_CHARS:
