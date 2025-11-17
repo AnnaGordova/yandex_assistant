@@ -290,18 +290,33 @@ def scroll(
 
 
 def click_card_and_return_image_url_if_match(page, product_title):
-    """
-    Находит изображение на текущей странице по тексту в alt и возвращает его URL.
-    """
+    # Очистим и упростим название для поиска
+    import re
+    clean_title = re.sub(r'[^\w\s]', ' ', product_title.lower())
+    words = clean_title.split()
+
+    # Ищем изображение, в alt которого есть хотя бы 2 слова из названия
     js_code = f"""
     () => {{
-        // Ищем изображение, в alt которого есть указанный текст
-        const img = Array.from(document.querySelectorAll('img[alt*="{product_title}"]'))[0];
-        return img.src;     
+        const words = {words};
+        const images = Array.from(document.querySelectorAll('img[alt]'));
+        for (const img of images) {{
+            const alt = img.alt.toLowerCase();
+            let matchCount = 0;
+            for (const word of words) {{
+                if (alt.includes(word)) matchCount++;
+            }}
+            if (matchCount >= Math.min(2, words.length)) {{
+                return img.src || img.dataset.src || null;
+            }}
+        }}
+        return null;
     }}
     """
-    img_url = page.evaluate(js_code)
-    return img_url
+    try:
+        return page.evaluate(js_code)
+    except:
+        return None
 
 def describe_product_from_image(
         screenshot_path,
