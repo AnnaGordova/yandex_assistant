@@ -4,6 +4,7 @@ from openai import OpenAI
 from Agent_Marketplace.system_prompt2 import SYSTEM_PROMPT
 from Agent_Marketplace.tools import click, open_browser, make_screenshot, click_and_type, scroll, describe_product_from_image, click_card_and_return_image_url_if_match
 from playwright.sync_api import sync_playwright
+import os
 
 class Agent_marketplace:
     def __init__(self):
@@ -83,9 +84,20 @@ class Agent_marketplace:
 
             time.sleep(5)
 
+    import os
+    import re
+    import time
+    from playwright.sync_api import sync_playwright
 
+    def sanitize_folder_name(name: str) -> str:
+        """Очищает строку, чтобы можно было использовать как имя папки."""
+        return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', name).strip()[:100]
 
-    def run_shopping_agent(self, user_request, client_openai, model_id: str):
+    def run_shopping_agent(self, user_request: str, client_openai, model_id: str):
+        # Создаём папку для скриншотов
+        folder_name = f"Agent_Marketplace/screenshots_{user_request}"
+        os.makedirs(folder_name, exist_ok=True)
+
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"Пользователь: {user_request}"}
@@ -106,10 +118,8 @@ class Agent_marketplace:
                     model=self.model,
                     messages=messages,
                 )
-
                 response = completion.choices[0].message.content
                 print(f"\n[Step {step}] Model response:\n{response}")
-
                 messages.append({"role": "assistant", "content": response})
 
                 # --- Парсим ACTION ---
@@ -121,42 +131,44 @@ class Agent_marketplace:
                 action_name = action_match.group(1)
                 action_args = action_match.group(2)
 
+                # --- Вспомогательная функция для формирования пути ---
+                def sp(filename: str) -> str:
+                    return os.path.join(folder_name, filename)
+
                 # --- Выполнение действия ---
                 if action_name == "OPEN_BROWSER":
                     browser, page = open_browser(p)
-                    screenshot_path = "screenshot_start.png"
+                    screenshot_path = sp("screenshot_start.png")
                     page = make_screenshot(page, screenshot_path)
                     obs = f"Открыт Яндекс.Маркет. Сделан скриншот: {screenshot_path}"
                     messages.append({"role": "user", "content": obs})
 
                 elif action_name == "TYPE_SEARCH_QUERY":
                     query = action_args.strip('"')
-                    screenshot_path = "before_search.png"
+                    screenshot_path = sp("before_search.png")
                     page = make_screenshot(page, screenshot_path)
                     page = click_and_type(
                         page=page,
                         screenshot_path=screenshot_path,
-                        user_query="Найди координаты середины поискового запроса 'Найти товары'  в формате [x, y].",
+                        user_query="Найди координаты середины поискового запроса 'Найти товары' в формате [x, y].",
                         client_openai=client_openai,
                         model_id=model_id,
                         text_to_type=query,
                         press_enter=True
                     )
                     time.sleep(2)
-                    page = make_screenshot(page, "after_search.png")
+                    page = make_screenshot(page, sp("after_search.png"))
                     messages.append({"role": "user", "content": f"Запрос '{query}' введён. Сделан скриншот."})
 
                 elif action_name == "SCROLL":
                     direction = "down"
                     page = scroll(page, direction=direction, amount=500)
-                    page = make_screenshot(page, f"scroll_{step}.png")
+                    page = make_screenshot(page, sp(f"scroll_{step}.png"))
                     messages.append({"role": "user", "content": f"Прокрутка вниз. Сделан скриншот."})
 
                 elif action_name == "CLICK_ON_PRODUCT":
-                    # Например: CLICK_ON_PRODUCT("товар 1")
-                    screenshot_path = f"click_ready_{step}.png"
+                    screenshot_path = sp(f"click_ready_{step}.png")
                     page = make_screenshot(page, screenshot_path)
-                    # Попросим модель указать координаты нужного товара
                     click_prompt = f"Пользователь ищет: {user_request}. Найди на изображении один подходящий товар и верни его координаты в формате [x, y] (0–1000)."
                     page = click(
                         page=page,
@@ -167,14 +179,13 @@ class Agent_marketplace:
                         pretty_click=True
                     )
                     time.sleep(2)
-                    # Сделаем скриншот карточки
-                    card_screenshot = f"product_card_{len(found_products) + 1}.png"
+                    card_screenshot = sp(f"product_card_{len(found_products) + 1}.png")
                     page = make_screenshot(page, card_screenshot)
                     messages.append(
                         {"role": "user", "content": f"Открыта карточка товара. Сделан скриншот: {card_screenshot}"})
 
                 elif action_name == "SCREENSHOT_AND_DESCRIBE":
-                    screenshot_path = f"desc_{step}.png"
+                    screenshot_path = sp(f"desc_{step}.png")
                     page = make_screenshot(page, screenshot_path)
                     desc_prompt = "Опиши этот товар: название, ключевые характеристики, цену. Не возвращай координаты."
                     description, _ = describe_product_from_image(
@@ -187,12 +198,9 @@ class Agent_marketplace:
                     messages.append({"role": "user", "content": f"Описание товара получено: {description}"})
 
                     if len(found_products) >= 3:
-                        # Попробуем извлечь названия для получения URL изображений
-                        pass
+                        pass  # можно добавить логику завершения
 
                 elif action_name == "EXTRACT_IMAGE_URL":
-                    # Допустим, аргумент — название из описания
-                    # Это можно улучшить: парсить название из found_products[-1]["description"]
                     try:
                         title = re.search(r"Название:\s*(.*)", found_products[-1]["description"]).group(1)
                     except:
@@ -213,9 +221,7 @@ class Agent_marketplace:
 
                 time.sleep(1)
 
-            # --- Закрытие браузера ---
             if browser:
                 browser.close()
 
-            # --- Возврат результатов ---
             return found_products
