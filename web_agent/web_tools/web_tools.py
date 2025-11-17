@@ -23,7 +23,7 @@ class WebAgent:
         self,
         headless: bool = False,
         url: str = "https://market.yandex.ru/",
-        slow_mo_ms: int = 1000,
+        slow_mo_ms: int = 0,
         viewport: Tuple[int, int] = None,
         user_agent: Optional[str] = None,
         screenshot_path: Path = Path("web_agent/screenshots"),
@@ -245,45 +245,70 @@ class WebAgent:
         )
         return path
 
+    def return_image_url(self, card_name):
+        """
+        Находит изображение на текущей странице по тексту в alt и возвращает его URL.
+        """
+        js_code = f"""
+        () => {{
+            // Ищем изображение, в alt которого есть указанный текст
+            const img = Array.from(document.querySelectorAll('img[alt*="{card_name}"]'))[0];
+            return img.src;     
+        }}
+        """
+        img_url = self.page.evaluate(js_code)
+        return img_url
+
     def set_price_filter(self, min_price: int | None, max_price: int | None) -> Path:
         """
         Устанавливает фильтр цены на Яндекс.Маркете.
         Ориентируется на инпуты вида
         input#range-filter-field-glprice_*_min и *_max.
         """
+
         def _fill(locator: Locator, value: int):
+            self.page.wait_for_load_state("domcontentloaded", timeout=8000)
             locator.click()
-            locator.fill(str(value))     # fill сам очистит поле
-            self.page.wait_for_timeout(200)
+            # на всякий случай подчистим поле
+            locator.press("Control+A")
+            locator.press("Delete")
+            locator.fill(str(value))
+            self.page.wait_for_timeout(400)
             locator.press("Enter")
 
         try:
-            # Сначала работаем в блоке фильтра цены, если он есть
-            price_scope = self.page.locator('[data-zone-name="price"]')
-            if price_scope.count() == 0:
-                price_scope = self.page
-
+            # --- MIN ---
             if min_price is not None:
-                min_input = price_scope.locator(
-                    'input[id^="range-filter-field-glprice_"][id$="_min"]'
+                min_input = self.page.locator(
+                    'input[id^="range-filter-field-glprice_"][id$="_min"]:visible'
                 ).first
                 if min_input.count() == 0:
-                    # fallback: placeholder "от"
-                    min_input = price_scope.locator("input[placeholder*='от']").first
+                    # запасной вариант – placeholder "от"
+                    min_input = self.page.locator(
+                        'input[placeholder*="от"]'
+                    ).first
+
                 if min_input.count() > 0:
                     _fill(min_input, min_price)
+                else:
+                    print("set_price_filter: min input not found")
 
+            # --- MAX ---
             if max_price is not None:
-                max_input = price_scope.locator(
-                    'input[id^="range-filter-field-glprice_"][id$="_max"]'
+                max_input = self.page.locator(
+                    'input[id^="range-filter-field-glprice_"][id$="_max"]:visible'
                 ).first
                 if max_input.count() == 0:
-                    # fallback: placeholder "до"
-                    max_input = price_scope.locator("input[placeholder*='до']").first
+                    # запасной вариант – placeholder "до"
+                    max_input = self.page.locator(
+                        'input[placeholder*="до"]'
+                    ).first
+
                 if max_input.count() > 0:
                     _fill(max_input, max_price)
+                else:
+                    print("set_price_filter: max input not found")
 
-            # ждём, пока выдача перерисуется
             try:
                 self.page.wait_for_load_state("domcontentloaded", timeout=10000)
             except PlaywrightTimeoutError:

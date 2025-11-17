@@ -15,7 +15,7 @@ from qwen_agent.agents import Assistant
 # Конфиг работы LLM/VLM модели агента
 llm_cfg = {
     'model_type': "qwenvl_oai",
-    'model': "QuantTrio/Qwen3-VL-30B-A3B-Instruct-AWQ",
+    'model': "QuantTrio/Qwen3-VL-32B-Instruct-AWQ",
     'model_server': "http://195.209.210.28:8000/v1",
     'api_key': None,
 
@@ -32,7 +32,7 @@ _web_agent_singleton: Optional[WebAgent] = None
 # минимальный интервал между полными прогонками агента
 MIN_INTERVAL_BETWEEN_RUNS = 10.0    # секунд
 # задержка между действиями браузера (playwright slow_mo)
-DEFAULT_SLOW_MO_MS = 1500          # мс
+DEFAULT_SLOW_MO_MS = 500          # мс
 
 def init_agent(show_browser: bool = True):
     """

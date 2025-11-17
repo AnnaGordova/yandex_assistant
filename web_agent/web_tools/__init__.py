@@ -98,6 +98,7 @@ class ClickTool(BaseTool):
     description = (
         "Clicks at given X,Y coordinates with left/right/middle button and optional double click. "
         "Returns a screenshot after the action."
+        "FORMAT: {'x': int, 'y': int}"
     )
     parameters = [
         {
@@ -300,6 +301,26 @@ class Zoom(BaseTool):
         )
         return [ContentItem(image=str(path))]
 
+
+@register_tool ("return_image_url")
+class ReturnImageUrl(BaseTool):
+    description = "Returns the url of the product card image by its name."
+
+    parameters =[
+        {
+            "name": "product_name",
+            "type": "string",
+            "required": True,
+            "description": "product card name. At the left from image, bold text."
+        }
+    ]
+
+    def call(self, params: str, **kwargs) -> List[ContentItem]:
+        args = json5.loads(params) if params else {}
+        agent = get_agent()
+        return [ContentItem(text=agent.return_image_url(name = args.name))]
+
+
 def make_web_tools(agent: WebAgent | None = None) -> list[BaseTool]:
     """Возвращает список зарегистрированных web-tools.
 
@@ -315,7 +336,8 @@ def make_web_tools(agent: WebAgent | None = None) -> list[BaseTool]:
         GetCurrentURL(),
         Zoom(),
         SaveCandidateTool(),
-        SetPriceFilterTool()
+        SetPriceFilterTool(),
+        ReturnImageUrl(),
     ]
 
 def get_saved_candidates(clear: bool = True) -> list[dict]:
