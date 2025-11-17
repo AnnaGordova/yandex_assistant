@@ -26,7 +26,73 @@ def init_session(
 def close_session() -> None:
     close_agent()
 
+RESULT_STORE: list[dict] = []
 
+@register_tool("set_price_filter")
+class SetPriceFilterTool(BaseTool):
+    description = (
+        "Устанавливает фильтр цены по минимальному и максимальному значению "
+        "на странице маркетплейса и возвращает скриншот после применения фильтра."
+    )
+    parameters = [
+        {
+            "name": "min_price",
+            "type": "integer",
+            "required": False,
+            "description": "Минимальная цена (рубли). Можно опустить, если нет ограничения снизу.",
+        },
+        {
+            "name": "max_price",
+            "type": "integer",
+            "required": False,
+            "description": "Максимальная цена (рубли). Можно опустить, если нет ограничения сверху.",
+        },
+    ]
+
+    def call(self, params: str, **kwargs) -> List[ContentItem]:
+        args = json5.loads(params) if params else {}
+        min_price = args.get("min_price")
+        max_price = args.get("max_price")
+
+        agent = get_agent()
+        path = agent.set_price_filter(min_price=min_price, max_price=max_price)
+        return [ContentItem(image=str(path))]
+
+@register_tool("save_candidate")
+class SaveCandidateTool(BaseTool):
+    description = (
+        "Сохраняет текущую карточку товара как кандидата: "
+        "URL + краткое текстовое описание, почему она подходит."
+    )
+    parameters = [
+        {
+            "name": "description",
+            "type": "string",
+            "required": True,
+            "description": "Короткое описание/пояснение, зачем этот товар выбран.",
+        },
+    ]
+
+    def call(self, params: str, **kwargs) -> List[ContentItem]:
+        args = json5.loads(params) if params else {}
+        description = args.get("description", "")
+
+        agent = get_agent()
+        url = agent.get_current_url()
+
+        RESULT_STORE.append(
+            {
+                "url": url,
+                "description": description,
+            }
+        )
+
+        # Можно ещё сделать скрин результата:
+        # screenshot_path = agent.screenshot(prefix="result")
+        # и тоже сохранить в RESULT_STORE при желании.
+
+        idx = len(RESULT_STORE)
+        return [ContentItem(text=f"Saved candidate #{idx}: {url}")]
 @register_tool("click")
 class ClickTool(BaseTool):
     description = (
@@ -248,4 +314,13 @@ def make_web_tools(agent: WebAgent | None = None) -> list[BaseTool]:
         GoBackTool(),
         GetCurrentURL(),
         Zoom(),
+        SaveCandidateTool(),
+        SetPriceFilterTool()
     ]
+
+def get_saved_candidates(clear: bool = True) -> list[dict]:
+    global RESULT_STORE
+    out = list(RESULT_STORE)
+    if clear:
+        RESULT_STORE = []
+    return out
