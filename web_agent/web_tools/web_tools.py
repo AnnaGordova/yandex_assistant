@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 from datetime import datetime
 
-from playwright.sync_api import sync_playwright, Page, TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import sync_playwright, Page, TimeoutError as PlaywrightTimeoutError, Locator
 
 from web_agent.web_tools.utils import _draw_click_marker, get_screen_size
 
@@ -244,6 +244,56 @@ class WebAgent:
             clip={"x": px, "y": py, "width": pw, "height": ph},
         )
         return path
+
+    def set_price_filter(self, min_price: int | None, max_price: int | None) -> Path:
+        """
+        Устанавливает фильтр цены на Яндекс.Маркете.
+        Ориентируется на инпуты вида
+        input#range-filter-field-glprice_*_min и *_max.
+        """
+        def _fill(locator: Locator, value: int):
+            locator.click()
+            locator.fill(str(value))     # fill сам очистит поле
+            self.page.wait_for_timeout(200)
+            locator.press("Enter")
+
+        try:
+            # Сначала работаем в блоке фильтра цены, если он есть
+            price_scope = self.page.locator('[data-zone-name="price"]')
+            if price_scope.count() == 0:
+                price_scope = self.page
+
+            if min_price is not None:
+                min_input = price_scope.locator(
+                    'input[id^="range-filter-field-glprice_"][id$="_min"]'
+                ).first
+                if min_input.count() == 0:
+                    # fallback: placeholder "от"
+                    min_input = price_scope.locator("input[placeholder*='от']").first
+                if min_input.count() > 0:
+                    _fill(min_input, min_price)
+
+            if max_price is not None:
+                max_input = price_scope.locator(
+                    'input[id^="range-filter-field-glprice_"][id$="_max"]'
+                ).first
+                if max_input.count() == 0:
+                    # fallback: placeholder "до"
+                    max_input = price_scope.locator("input[placeholder*='до']").first
+                if max_input.count() > 0:
+                    _fill(max_input, max_price)
+
+            # ждём, пока выдача перерисуется
+            try:
+                self.page.wait_for_load_state("domcontentloaded", timeout=10000)
+            except PlaywrightTimeoutError:
+                pass
+            self.page.wait_for_timeout(800)
+
+        except PlaywrightTimeoutError:
+            pass
+
+        return self.screenshot(prefix="price")
 
 
 # ---------- singleton-хелперы, которые дергает __init__.py ----------
