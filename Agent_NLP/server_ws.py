@@ -33,7 +33,6 @@ async def get_agent():
 async def handle_connection(websocket):
     print("New WebSocket connection")
     async for raw_message in websocket:
-        print(">> RAW:", raw_message)
         try:
             data = json.loads(raw_message)
         except json.JSONDecodeError:

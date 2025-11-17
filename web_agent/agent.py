@@ -1,13 +1,11 @@
-import os
-from os.path import exists
+# agent.py
+
+from typing import Optional, List, Tuple
 from pathlib import Path
-from typing import Optional, List
 
 from .web_tools import WebAgent
 from .web_tools import make_web_tools, init_session, close_session
-# from web_agent.config import settings
 from .system_prompt_web import SYSTEM_PROMPT
-import time
 
 from qwen_agent.utils.output_beautify import multimodal_typewriter_print
 from qwen_agent.agents import Assistant
@@ -18,27 +16,29 @@ llm_cfg = {
     'model': "QuantTrio/Qwen3-VL-32B-Instruct-AWQ",
     'model_server': "http://195.209.210.28:8000/v1",
     'api_key': None,
-
     'generate_cfg': {
-        "temperature": 0.05,
+        "temperature": 0.1,
         "top_p": 1.0,
-        "repetition_penalty": 1.1
+        "repetition_penalty": 1.1,
+        # "max_new_tokens": 1024,
     }
 }
 
 _agent_singleton: Optional[Assistant] = None
 _web_agent_singleton: Optional[WebAgent] = None
 
-# минимальный интервал между полными прогонками агента
-MIN_INTERVAL_BETWEEN_RUNS = 10.0    # секунд
-# задержка между действиями браузера (playwright slow_mo)
-DEFAULT_SLOW_MO_MS = 1000          # мс
+DEFAULT_SLOW_MO_MS = 100
 
-def init_agent(show_browser: bool = True):
+
+def init_agent(show_browser: bool = True) -> Tuple[Assistant, WebAgent]:
     """
     Инициализация агентов.
     """
-    web_agent = init_session(screenshot_path=Path("web_agent/screenshots"), headless=not show_browser, slow_mo_ms=DEFAULT_SLOW_MO_MS)
+    web_agent = init_session(
+        screenshot_path=Path("web_agent/screenshots"),
+        headless=not show_browser,
+        slow_mo_ms=DEFAULT_SLOW_MO_MS,
+    )
     print("web agent initialized")
     web_tools = make_web_tools()
     print("tools initialized")
@@ -50,42 +50,48 @@ def init_agent(show_browser: bool = True):
     )
     print("Assistant initialized")
     return agent, web_agent
-def get_agents(show_browser: bool = True):
+
+
+def get_agents(show_browser: bool = True) -> Tuple[Assistant, WebAgent]:
     """
     Возвращает созданный или существующий экземпляр Assistant и WebAgent.
     """
     global _agent_singleton, _web_agent_singleton
 
-    if _agent_singleton is None:
+    if _agent_singleton is None or _web_agent_singleton is None:
         _agent_singleton, _web_agent_singleton = init_agent(show_browser=show_browser)
 
     return _agent_singleton, _web_agent_singleton
 
-def run_agent(query: str, messages: List | None = None):
-    """
-    Запуск агента с заданной историей сообщений и входным запросом.
-    Возвращает (plain_text, updated_messages).
-    """
+
+def run_agent(user_query: str, history_text: str | None = None) -> str:
     agent, web_agent = get_agents(show_browser=True)
 
-    if not messages:
-        messages = []
+    # Компактный контекст + новый запрос
+    if history_text:
+        full_text = (
+            "Краткая история диалога (что уже делали и какие товары смотрели):\n"
+            f"{history_text}\n\n"
+            "Новое сообщение пользователя:\n"
+            f"{user_query}\n"
+        )
+    else:
+        full_text = user_query
 
     start_screen = web_agent.screenshot()
-    messages += [
-        {"role": "user", "content": [
+    messages = [{
+        "role": "user",
+        "content": [
             {"image": str(start_screen)},
-            {"text": query}
-        ]}
-    ]
+            {"text": full_text},
+        ],
+    }]
 
-    response_plain_text = ''
-    final_messages = None
-
+    response_plain_text = ""
     for ret_messages in agent.run(messages):
-        # ret_messages — это полная история диалога для текущего шага
-        final_messages = ret_messages
-        response_plain_text = multimodal_typewriter_print(ret_messages, response_plain_text)
+        response_plain_text = multimodal_typewriter_print(
+            ret_messages,
+            response_plain_text,
+        )
 
-    # НЕ закрываем сессию здесь
-    return response_plain_text, final_messages
+    return response_plain_text

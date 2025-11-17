@@ -108,11 +108,13 @@ class WebAgent:
             y: int,
             button: str = "left",
             click_count: int = 1,
+            wait_after_ms: int = 400,  # <- НОВЫЙ параметр, можно тюнить
     ) -> Path:
         """
         x, y – координаты в диапазоне [0, 1000] относительно ТЕКУЩЕГО viewport’а.
         Если сайт открыл карточку в новой вкладке, мы берём её URL,
         закрываем новую вкладку и переходим на этот URL в текущей.
+        После клика даём странице время «устаканиться», затем делаем скриншот.
         """
         # Нормализуем вход
         x = max(0, min(1000, int(x)))
@@ -157,15 +159,26 @@ class WebAgent:
             if target_url:
                 try:
                     self.page.goto(target_url, wait_until="domcontentloaded", timeout=15000)
+                    # После полноценной навигации можно дождаться networkidle
+                    try:
+                        self.page.wait_for_load_state("networkidle", timeout=5000)
+                    except PlaywrightTimeoutError:
+                        pass
                 except PlaywrightTimeoutError:
                     pass
         else:
             # Навигация в той же вкладке (или просто клик без навигации)
+            # Для SPA-фильтров пробуем дождаться networkidle, если есть сетевые запросы
             try:
-                self.page.wait_for_load_state("domcontentloaded", timeout=5000)
+                self.page.wait_for_load_state("networkidle", timeout=3000)
             except PlaywrightTimeoutError:
+                # Если networkidle не наступил (постоянные запросы) — просто игнорируем
                 pass
 
+        # КЛЮЧЕВОЕ: даём верстке стабилизироваться после изменения фильтров/DOM
+        self.page.wait_for_timeout(wait_after_ms)
+
+        # И только теперь делаем скрин
         path = self.screenshot(prefix="click")
         _draw_click_marker(path, px, py)
         return path

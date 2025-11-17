@@ -6,6 +6,10 @@ from qwen_agent.llm.schema import ContentItem
 from .web_tools import WebAgent, get_agent, close_agent
 from qwen_agent.tools.base import BaseTool, register_tool
 
+from logging import getLogger
+
+logger = getLogger(__name__)
+
 
 def init_session(
         headless: bool = False,
@@ -108,18 +112,16 @@ class SaveCandidateTool(BaseTool):
     def call(self, params: str, **kwargs) -> List[ContentItem]:
         args = json5.loads(params) if params else {}
         index = int(args.get("index", len(RESULT_STORE) + 1))
-        raw_description = args.get("description", "")
-        product_name = args.get("product_name", "")
+        raw_description = args.get("description", "").replace("\\", "")
+        product_name = args.get("product_name", "").replace("\\", "")
 
         # 1) Парсим description из строки в объект
         if isinstance(raw_description, str):
             try:
                 description_parsed = json5.loads(raw_description)
             except Exception:
-                # если модель отдала невалидный json – сохраняем как raw
                 description_parsed = {"raw": raw_description}
         else:
-            # на случай, если модель вдруг пришлёт уже объект
             description_parsed = raw_description
 
         agent = get_agent()
@@ -131,7 +133,7 @@ class SaveCandidateTool(BaseTool):
                 image_url = agent.return_image_url(card_name=product_name)
         except Exception as e:
             # тут можешь залогировать, если хочешь
-            # logger.warning("return_image_url failed for %r: %s", product_name, e)
+            logger.warning("return_image_url failed for %r: %s", product_name, e)
             image_url = None
 
         url = agent.get_current_url()
@@ -387,7 +389,7 @@ class ReturnImageUrl(BaseTool):
     def call(self, params: str, **kwargs) -> List[ContentItem]:
         args = json5.loads(params) if params else {}
         agent = get_agent()
-        return [ContentItem(text=agent.return_image_url(name=args.name))]
+        return [ContentItem(text=agent.return_image_url(card_name=args['product_name']))]
 
 
 def make_web_tools(agent: WebAgent | None = None) -> list[BaseTool]:
@@ -410,9 +412,9 @@ def make_web_tools(agent: WebAgent | None = None) -> list[BaseTool]:
     ]
 
 
-def get_saved_candidates(clear: bool = True) -> list[dict]:
+def get_saved_candidates(clear: bool = False) -> dict:
     global RESULT_STORE
-    out = list(RESULT_STORE)
+    out = RESULT_STORE.copy()
     if clear:
-        RESULT_STORE = []
+        RESULT_STORE = {}
     return out

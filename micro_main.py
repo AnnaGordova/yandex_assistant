@@ -1,18 +1,60 @@
-from web_agent.agent import init_agent, run_agent
-from web_agent.web_tools import get_saved_candidates, close_session
+from web_agent.agent import run_agent
+from web_agent.web_tools import close_session, get_saved_candidates
 
-if __name__ == '__main__':
-    # agent = init_agent()
-    text, dialog_ctx = run_agent(query="{'query': 'мужская кожаная куртка в строгом стиле', 'filters': {'sex': 'male', 'size': '48-52', 'min_price': None, 'max_price': 10000}, 'extra': 'кожаная куртка в строгом стиле, черного цвета, на молнии без капюшона, мужская, размер 48-52, бюджет до 10000 рублей'}")
-    feedback = input("U: ")
-    while feedback != "break":
-        text, dialog_ctx= run_agent(query=(
-        "Вот фидбек от пользователя по уже подобранным товарам: "
-        f"{feedback}\n"
-        "Замени ТОЛКО товар, который попросил пользователь. остальные не трогай"),
-        messages=dialog_ctx
-        )
-        feedback = input("U: ")
+MAX_HISTORY_CHARS = 2000
 
-    print(get_saved_candidates())
-    close_session()
+
+def interactive_dialog():
+    """
+    Простой CLI-диалог с web-агентом.
+    Вводишь запросы, пока не напишешь 'stop'.
+    История передаётся в агент как обычный текст,
+    так что ошибка формата messages не возникает.
+    """
+    print("=== Web-агент для Яндекс.Маркета ===")
+    print("Пиши запросы. Чтобы выйти, введи: stop\n")
+
+    history_text = ""  # сюда будем складывать текстовую историю диалога
+    user_input = """
+    {
+      "query": "телевизор для кухни, 32 дюйма, дешевый, с поддержкой Smart TV",
+      "filters": {
+        "sex": null,
+        "size": null,
+        "min_price": null,
+        "max_price": 15000
+      },
+      "extra": "нужен недорогой телевизор 32 дюйма, с функцией Smart TV (чтобы можно было смотреть телевизор и интернет-контент), без дополнительных требований к дизайну, качеству звука и другим функциям"
+    }"""
+    try:
+        while True:
+
+            if user_input.lower() in ("stop", "exit", "quit"):
+                print("Останавливаем диалог.")
+                break
+
+            # Передаём всю накопленную историю как текст,
+            # а не как внутренний список messages Qwen
+            response_text = run_agent(
+                user_query=user_input,
+                history_text=history_text or None,
+            )
+
+            print("\n\n\nA:", response_text)
+            print("-" * 60)
+            print(get_saved_candidates())
+            # Дописываем в историю последнюю реплику
+            history_text += f"\nU: {user_input}\nA: {response_text}\n"
+            if len(history_text) > MAX_HISTORY_CHARS:
+                history_text = history_text[-MAX_HISTORY_CHARS:]
+
+            user_input = input("U: ").strip()
+            if not user_input:
+                continue
+
+    finally:
+        close_session()
+
+
+if __name__ == "__main__":
+    interactive_dialog()

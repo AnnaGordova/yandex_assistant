@@ -23,7 +23,6 @@ async def main():
             await ws.send(json.dumps(dialog, ensure_ascii=False))
 
             raw_resp = await ws.recv()
-            print("RAW RESP:", raw_resp)
 
             try:
                 resp = json.loads(raw_resp)
