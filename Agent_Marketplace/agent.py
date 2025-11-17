@@ -7,14 +7,14 @@ from playwright.sync_api import sync_playwright
 
 class Agent_marketplace:
     def __init__(self):
-        """Конструктор класса агента, уточняющего запросы пользователя"""
+        """Конструктор класса агента, взаимодействующего с интерфейсом"""
         self.client = None
         self.model = None
         self.system_prompt = SYSTEM_PROMPT 
 
         def connect_vllm_api():
             """ Подключение к модели через yandex cloud (сделать как дадут доступ)"""
-            self.model = "QuantTrio/Qwen3-VL-30B-A3B-Instruct-AWQ"
+            self.model = "QuantTrio/Qwen3-VL-32B-Instruct-AWQ"
             self.client = OpenAI(
                 base_url="http://195.209.210.28:8000/v1",
                 api_key="sk-no-key-required",  # No API key needed for local vLLM server
@@ -44,7 +44,7 @@ class Agent_marketplace:
                 press_enter=True,
             )
             page = make_screenshot(page, output_image_path="Agent_Marketplace/artifacts/screen2.png")
-            page = scroll(page, direction="down", amount=1500)#amount - количество пикселей прокрутки
+            page = scroll(page, direction="down", amount=400)#amount - количество пикселей прокрутки
             page = make_screenshot(page, output_image_path="Agent_Marketplace/artifacts/screen3.png")
 
             with page.context.expect_page() as new_page_info:
