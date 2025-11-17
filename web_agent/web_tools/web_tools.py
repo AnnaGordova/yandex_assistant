@@ -294,6 +294,21 @@ class WebAgent:
             pass
 
         return self.screenshot(prefix="price")
+    
+
+    def return_image_url(self, card_name):
+        """
+        Находит изображение на текущей странице по тексту в alt и возвращает его URL.
+        """
+        js_code = f"""
+        () => {{
+            // Ищем изображение, в alt которого есть указанный текст
+            const img = Array.from(document.querySelectorAll('img[alt*="{card_name}"]'))[0];
+            return img.src;     
+        }}
+        """
+        img_url = self.page.evaluate(js_code)
+        return img_url
 
 
 # ---------- singleton-хелперы, которые дергает __init__.py ----------

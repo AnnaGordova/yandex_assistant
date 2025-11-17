@@ -50,6 +50,7 @@ def init_agent(show_browser: bool = True):
     )
     print("Assistant initialized")
     return agent, web_agent
+
 def get_agents(show_browser: bool = True):
     """
     Возвращает созданный или существующий экземпляр Assistant и WebAgent.

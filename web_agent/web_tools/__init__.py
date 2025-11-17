@@ -93,6 +93,7 @@ class SaveCandidateTool(BaseTool):
 
         idx = len(RESULT_STORE)
         return [ContentItem(text=f"Saved candidate #{idx}: {url}")]
+    
 @register_tool("click")
 class ClickTool(BaseTool):
     description = (
@@ -299,6 +300,23 @@ class Zoom(BaseTool):
             height=height
         )
         return [ContentItem(image=str(path))]
+    
+
+@register_tool ("return_image_url")
+class RetarnImageUrl(BaseTool):
+    description = "Returns the url of the product card image by its name."
+
+    parameters =[
+        {
+            "name": "product_name"
+        }
+    ]
+
+    def call(self, params: str, **kwargs) -> List[ContentItem]:
+        args = json5.loads(params) if params else {}
+        agent = get_agent()
+        return [ContentItem(text=agent.return_image_url())]
+
 
 def make_web_tools(agent: WebAgent | None = None) -> list[BaseTool]:
     """Возвращает список зарегистрированных web-tools.
