@@ -6,7 +6,7 @@ from Agent_Marketplace.utils import smart_resize, encode_image, draw_point
 import time
 
 def make_screenshot(page, output_image_path):
-    time.sleep(2)
+    time.sleep(3)
     page.screenshot(path=output_image_path)
     return page
 
