@@ -23,7 +23,7 @@ class Agent_marketplace:
 
         connect_vllm_api()
 
-    def start_browsing(self):
+    def start_browsing(self, query_to_type="мужская рубашка в гавайском стиле"):
         """Здесь будет логика хождения агента по браузеру, пока что тут просто один клик"""
         '''
         screenshot_path = "Agent_Marketplace/main_screen.png"
@@ -42,47 +42,46 @@ class Agent_marketplace:
                 user_query="Найди координаты середины строки поиска в формате [x, y].",
                 client_openai=self.client,
                 model_id=self.model,
-                text_to_type="мужская рубашка в гавайском стиле",
+                text_to_type=query_to_type,
                 press_enter=True,
             )
             page = make_screenshot(page, output_image_path="Agent_Marketplace/artifacts/screen2.png")
 
-            with page.context.expect_page() as new_page_info:
-                page = click(
-                    page=page,
-                    screenshot_path="Agent_Marketplace/artifacts/screen2.png",
-                    user_query="Найди координаты центра первой карточки товара в формате [x, y].",
+            for i in range(1, 4):
+                with page.context.expect_page() as new_page_info:
+                    page = click(
+                        page=page,
+                        screenshot_path="Agent_Marketplace/artifacts/screen2.png",
+                        user_query=f"Найди координаты центра {i}-ой карточки товара в формате [x, y].",
+                        client_openai=self.client,
+                        model_id=self.model,
+                    )
+                    new_page = new_page_info.value
+                    time.sleep(5)
+
+                # Теперь делайте скриншот НОВОЙ страницы:
+                new_page.screenshot(path=f"Agent_Marketplace/artifacts/card_screen{i}.png")
+
+                # Отправляем скриншот в модель, чтобы получить название товара
+                output_text, _ = describe_product_from_image(
+                    screenshot_path=f'Agent_Marketplace/artifacts/card_screen{i}.png',
+                    user_query="Определи название товара на изображении и верни его",
                     client_openai=self.client,
                     model_id=self.model,
+                    output_image_path=f"Agent_Marketplace/artifacts/product_card{i}.png"
                 )
-                new_page = new_page_info.value
-                time.sleep(5)
-
-            # Теперь делайте скриншот НОВОЙ страницы:
-            new_page.screenshot(path="Agent_Marketplace/artifacts/screen3.png")
-
-            # Отправляем скриншот в модель, чтобы получить название товара
-            output_text, _ = describe_product_from_image(
-                screenshot_path='Agent_Marketplace/artifacts/screen3.png',
-                user_query="Определи название товара на изображении и верни его",
-                client_openai=self.client,
-                model_id=self.model,
-                output_image_path="Agent_Marketplace/artifacts/product_card.png"
-            )
 
 
-            # Получаем URL страницы товара
-            product_url = return_product_page_url(new_page, output_text.strip())  
+                # Получаем URL страницы товара
+                product_url = return_product_page_url(new_page, output_text.strip())
 
-            if product_url:
-                return "URL карточки товара:", product_url
-            else:
-                return "Не удалось получить URL карточки", None
+                if product_url:
+                    print("URL карточки товара:", product_url)
+                else:
+                    print("Не удалось получить URL карточки", None)
 
-    import os
-    import re
-    import time
-    from playwright.sync_api import sync_playwright
+
+
 
     def sanitize_folder_name(name: str) -> str:
         """Очищает строку, чтобы можно было использовать как имя папки."""
