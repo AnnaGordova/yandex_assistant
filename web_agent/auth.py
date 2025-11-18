@@ -1,11 +1,13 @@
-# auth_bootstrap.py
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 AUTH_STATE_PATH = Path("auth/yandex_state.json")
 
 
-def main():
+def login():
+    """
+    Функция для ручного входа в аккаунт
+    """
     AUTH_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as p:
@@ -24,6 +26,9 @@ def main():
 
 
 def check():
+    """
+    Функция проверки аутентификации
+    """
     print("AUTH_STATE_PATH:", AUTH_STATE_PATH, "exists:", AUTH_STATE_PATH.exists())
 
     with sync_playwright() as p:
@@ -40,8 +45,9 @@ def check():
         browser.close()
 
 
-# if __name__ == "__main__":
-#     main()
 
 if __name__ == "__main__":
-    check()
+    #login() #Нужен для регистрации пользователя, чтобы сохранитьь куку сессии
+    #check() #Нужен для проверки регистрации
+    pass
+

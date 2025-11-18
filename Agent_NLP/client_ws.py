@@ -5,6 +5,7 @@ import websockets
 WS_URL = "ws://127.0.0.1:8766"
 
 async def main():
+    """Клиент, который стучится к агенту на сервер"""
     dialog = []
 
     print("=== Тестовый клиент NLP-агента по WebSocket ===")

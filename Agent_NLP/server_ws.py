@@ -1,10 +1,7 @@
-# nlp_ws_server.py
-
 import asyncio
 import json
 import traceback
 from websockets import serve
-
 from Agent_NLP.agent_ws import Agent_nlp
 
 agent = None
@@ -24,6 +21,7 @@ def extract_dialog(payload):
 
 
 async def get_agent():
+    """Извлечение экзамеляра класса агента"""
     global agent
     if agent is None:
         agent = Agent_nlp()
@@ -31,6 +29,7 @@ async def get_agent():
 
 
 async def handle_connection(websocket):
+    """Соединение по сокетам"""
     print("New WebSocket connection")
     async for raw_message in websocket:
         try:
@@ -62,8 +61,9 @@ async def handle_connection(websocket):
 
 
 async def main():
+    """Запуск сервера"""
     host = "127.0.0.1"
-    port = 8766  # если надо – поменяй и в клиенте
+    port = 8766
     async with serve(handle_connection, host, port, ping_interval=None):
         print(f"NLP WebSocket server started on ws://{host}:{port}")
         await asyncio.Future()  # не даём процессу завершиться

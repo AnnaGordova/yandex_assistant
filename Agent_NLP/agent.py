@@ -11,7 +11,7 @@ class Agent_nlp:
         self.system_prompt = TEXT_SYSTEM_PROMPT
 
         def connect_vllm_api():
-            """ Подключение к модели через yandex cloud (сделать как дадут доступ)"""
+            """ Подключение к модели через API"""
             self.model = "QuantTrio/Qwen3-VL-32B-Instruct-AWQ"
             self.client = OpenAI(
                 base_url="http://195.209.210.28:8000/v1",
@@ -20,6 +20,7 @@ class Agent_nlp:
 
 
         def connect_openrouter_api():
+            """ Подключение к модели через openrouter"""
             OPENROUTER_API_KEY ="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"
             OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
             MODEL_TEXT = "qwen/qwen2.5-vl-32b-instruct:free"
@@ -53,6 +54,7 @@ class Agent_nlp:
         return parsed
 
     def start_dialog(self):
+        """Метод запуска диалога с пользователем"""
         dialog = []
         parsed = self.generate("Поздоровайся с пользователем и спроси, как ты можешь ему помочь", dialog_history=dialog)
         print(parsed['questions'])

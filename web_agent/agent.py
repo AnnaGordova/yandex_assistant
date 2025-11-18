@@ -1,5 +1,3 @@
-# agent.py
-
 from typing import Optional, List, Tuple
 from pathlib import Path
 

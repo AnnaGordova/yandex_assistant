@@ -5,7 +5,7 @@ from Agent_NLP.utils import parse_agent_response
 
 class Agent_nlp:
     def __init__(self):
-        """Агент, который по истории диалога либо задаёт один вопрос,
+        """Конструктор агента, который по истории диалога либо задаёт один вопрос,
         либо возвращает финальный JSON для поиска товаров.
         """
         self.client = None
@@ -13,6 +13,7 @@ class Agent_nlp:
         self.system_prompt = TEXT_SYSTEM_PROMPT
 
         def connect_vllm_api():
+            """ Подключение к модели через API"""
             self.model = "QuantTrio/Qwen3-VL-32B-Instruct-AWQ"
             self.client = OpenAI(
                 base_url="http://195.209.210.28:8000/v1",
