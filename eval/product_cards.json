@@ -1,0 +1,50 @@
+{
+  "products": [
+    {
+      "golden_url": "https://market.yandex.ru/card/korallovyye-tapochki-dlya-vzroslykh-gibkiye-aquashoes-120/103797565163",
+      "article": "103797565163",
+      "title_short": "Акваобувь SUBEA",
+      "brand": "Subea",
+      "category": "обувь",
+      "image_url": "https://avatars.mds.yandex.net/get-mpic/4950407/2a00000199e736e1940c718d7444cf03ceac/600x800",
+      "key_attributes": [
+        "тапочки для бассейна",
+        "быстро сохнут",
+        "цвет черный",
+        "размер 41-42",
+        "Материал стельки – Эва",
+        "Антискользящая подошва"
+      ]
+    },
+    {
+      "golden_url": "https://market.yandex.ru/card/matras-gamak-naduvnoy-dlya-plavaniya-2-truby-ryzhiy/4591877384",
+      "article": "4591877384",
+      "title_short": "Матрас-гамак надувной для плавания, 2 трубы, рыжий",
+      "brand": "AKME",
+      "category": "товары для спорта и отдыха",
+      "image_url": "https://avatars.mds.yandex.net/get-mpic/16413949/2a00000197624c084d631c18e4382c0f878a/600x800",
+      "key_attributes": [
+        "надувной матрас для плавания",
+        "цвет рыжий",
+        "подходит для взрослых и детей",
+        "диаметр 25 см",
+        "максимальная нагрузка 100 кг"
+      ]
+    },
+    {
+      "golden_url": "https://market.yandex.ru/card/lyzhnyy-komplekt-120-sm-c-krepleniyami-s-rezinovoy-pyatkoy-i-palkami-90-sm/102355117630",
+      "article": "102355117630",
+      "title_short": "Лыжный комплект, 120 см, с креплениями и палками 90 см, цвета микс",
+      "category": "товары для спорта и отдыха, товары для зимних видов спорта, беговые лыжи и комплектующие",
+      "image_url": "https://avatars.mds.yandex.net/get-mpic/3725687/2a00000196422bbf8a444857b8e70a09739a/450x600",
+      "key_attributes": [
+        "с палками",
+        "размер лыж 120 см",
+        "палки 90 см",
+        "цвет разноцветный",
+        "универсальное крепление",
+        "резиновая пятка"
+      ]
+    }
+  ]
+}
