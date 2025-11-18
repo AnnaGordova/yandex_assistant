@@ -1,13 +1,13 @@
 import textwrap
 from dataclasses import dataclass, field
 from typing import List, Dict, Literal, Optional
-from Agent_NLP.agent_ws import Agent_nlp        # NLP-агент (у тебя уже есть)
-from web_agent.agent import get_agents, run_agent  # Web-агент (поход на маркетплейс)
+from Agent_NLP.agent_ws import Agent_nlp
+from web_agent.agent import get_agents, run_agent
 from web_agent.web_tools import get_saved_candidates
 
 Phase = Literal["nlp", "web"]
 
-
+FLAG = False
 @dataclass
 class ChatMessage:
     role: str   # "user" | "assistant"
@@ -53,13 +53,19 @@ class MinimalAdapter:
     # ---------- шаги пайплайна ----------
 
     def process_user_message(self, user_text: str) -> str:
-        """
-        Главный метод:
-        - добавляет пользовательское сообщение в историю,
-        - в фазе 'nlp' вызывает NLP-агента,
-        - при переходе в 'web' один раз запускает web-агента.
-        Возвращает текст ответа, который нужно показать пользователю.
-        """
+        global FLAG
+        user_text_lower = user_text.strip().lower()
+        if user_text_lower == "stop":
+            candidates = get_saved_candidates()
+            urls = [val['url'] for val in candidates.values() if 'url' in val]
+            if urls:
+                top3 = urls[:3]
+                links_text = "\n".join(f"{i + 1}. {url}" for i, url in enumerate(top3))
+                FLAG = True
+                return links_text
+            else:
+                return "К сожалению, подходящие товары не найдены."
+
         self.state.history.append(ChatMessage(role="user", content=user_text))
 
         if self.state.phase == "nlp":
@@ -187,9 +193,11 @@ def main():
             break
 
         answer = adapter.process_user_message(user_text)
+        if FLAG:
+            break
         print("\nАдаптер:", answer)
         print("\n" + "=" * 80 + "\n")
-
+    print(answer)
 
 if __name__ == "__main__":
     main()
