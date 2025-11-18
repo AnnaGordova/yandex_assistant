@@ -46,35 +46,34 @@ class Agent_marketplace:
                 press_enter=True,
             )
             page = make_screenshot(page, output_image_path="Agent_Marketplace/artifacts/screen2.png")
-            page = scroll(page, direction="down", amount=400)#amount - количество пикселей прокрутки
-            page = make_screenshot(page, output_image_path="Agent_Marketplace/artifacts/screen3.png")
 
             with page.context.expect_page() as new_page_info:
                 page = click(
                     page=page,
-                    screenshot_path="Agent_Marketplace/artifacts/screen3.png",
-                    user_query="Найди координаты произвольной карточки товара в формате [x, y].",
+                    screenshot_path="Agent_Marketplace/artifacts/screen2.png",
+                    user_query="Найди координаты центра первой карточки товара в формате [x, y].",
                     client_openai=self.client,
-                    model_id=self.model
+                    model_id=self.model,
                 )
                 new_page = new_page_info.value
                 time.sleep(3)
 
             # Теперь делайте скриншот НОВОЙ страницы:
-            new_page.screenshot(path="Agent_Marketplace/artifacts/screen4.png")
+            new_page.screenshot(path="Agent_Marketplace/artifacts/screen3.png")
 
             # Отправляем скриншот в модель, чтобы получить название товара
             output_text, _ = describe_product_from_image(
-                screenshot_path='Agent_Marketplace/artifacts/screen4.png',
+                screenshot_path='Agent_Marketplace/artifacts/screen3.png',
                 user_query="Определи название товара на изображении и верни его",
                 client_openai=self.client,
                 model_id=self.model,
                 output_image_path="Agent_Marketplace/artifacts/product_card.png"
             )
 
-            print(output_text.strip())
+
             # Получаем URL изображения по alt (названию товара)
             img_url = click_card_and_return_image_url_if_match(new_page, output_text.strip())
+            print(img_url)
 
 
             if img_url:
