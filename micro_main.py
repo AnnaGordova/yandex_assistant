@@ -1,4 +1,4 @@
-from web_agent.agent import run_agent
+from web_agent.agent import run_agent, get_agents
 from web_agent.web_tools import close_session, get_saved_candidates
 
 MAX_HISTORY_CHARS = 2000
@@ -16,14 +16,14 @@ def interactive_dialog():
 
     history_text = ""  # сюда будем складывать текстовую историю диалога
     user_input = """{
-      "query": "гавайская рубашка мужская",
+      "query": "женские треккинговые ботинки",
       "filters": {
-        "sex": "male",
-        "size": "L",
-        "min_price": 700,
-        "max_price": 2000
+        "sex": "female",
+        "size": "37",
+        "min_price": 4000,
+        "max_price": null
       },
-      "extra": "для пляжа, стиль гавайская рубашка, комфортная, подходит для отдыха на море"
+      "extra": "Подошва - Vibram или аналогичная по качеству (не сильно важно). Водонепроницаемые. В отзывах или покупках минимум 10 человек."
     }"""
     try:
         while True:
@@ -39,8 +39,8 @@ def interactive_dialog():
                 history_text=history_text or None,
             )
             print("-" * 60)
-            print(get_saved_candidates())
             print("\n\n\nA:", response_text)
+            print(get_saved_candidates())
             print("-" * 60)
             # Дописываем в историю последнюю реплику
             history_text += f"\nU: {user_input}\nA: {response_text}\n"
@@ -52,6 +52,11 @@ def interactive_dialog():
                 continue
 
     finally:
+        candidates = get_saved_candidates()
+        urls = [val['url'] for val in candidates.values()]
+        agent, web_agent = get_agents(show_browser=True)
+        share_url = web_agent.add_products_to_cart_and_get_share_link(urls, clear_before=True)
+        print("Ссылка на корзину:", share_url)
         close_session()
 
 
