@@ -1,0 +1,1 @@
+insert into "User"("USER_EMAIL", "USER_PASSWORD") values ({{user_email}}, {{user_password}});

@@ -1,0 +1,3 @@
+select "Product"."PRODUCT_ID", "PRODUCT_NAME", "PRODUCT_LINK", "PRODUCT_DESCRIPTION", 
+"PRODUCT_PRICE", "PRODUCT_PICTURE", "PRODUCT_RATING", "PRODUCT_AMOUNT_OF_REVIEWS", "PRODUCT_SIZE", "QUANTITY" from "CartItem" 
+join "Product" on "CartItem"."PRODUCT_ID"="Product"."PRODUCT_ID" where "USER_ID" = {{user_id}} order by "PRODUCT_NAME";

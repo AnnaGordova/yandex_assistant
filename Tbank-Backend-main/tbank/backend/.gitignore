@@ -1,0 +1,11 @@
+# Ignore important variables
+vars.sh
+go.mod
+go.sum
+
+# Ignore all .log files (anywhere in project)
+*.log
+*.log.*
+*.logs
+saveme
+progress.sh
