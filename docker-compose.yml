@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # === FRONTEND ===
   frontend:
-    build: ./frontend
+    build: ./front_tbank-main
     ports:
       - "80:8081" 
     depends_on:
@@ -11,7 +11,7 @@ services:
 
   # === BACKEND ===
   backend:
-    build: ./backend
+    build: ./Tbank-Backend-main
     environment:
       # Настройки PostgreSQL
       - USER=postgres_user
@@ -26,7 +26,7 @@ services:
       - ML_PORT=8766
     depends_on:
       - postgres
-      - ml
+#      - ml
     # для отладки можно открыть порт:
     # ports:
     #   - "3110:3110"
@@ -43,12 +43,6 @@ services:
     # для отладки:
     # ports:
     #   - "5432:5432"
-
-  # === ML (Qwen, TCP-сервер) ===
-  ml:
-    build: ./ml
-    expose:
-      - "8766"  # не публикуем наружу, только внутренняя сеть
 
 # === VOLUMES ===
 volumes:
