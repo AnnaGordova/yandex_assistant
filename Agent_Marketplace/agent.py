@@ -2,9 +2,10 @@ import re
 import time
 from openai import OpenAI
 from Agent_Marketplace.system_prompt2 import SYSTEM_PROMPT
-from Agent_Marketplace.tools import click, open_browser, make_screenshot, click_and_type, scroll, describe_product_from_image, return_product_page_url
+from Agent_Marketplace.tools import click, open_browser, make_screenshot, click_and_type, scroll, describe_product_from_image, return_product_page_url, return_image_url
 from playwright.sync_api import sync_playwright
 import os
+import json
 
 class Agent_marketplace:
     def __init__(self):
@@ -23,7 +24,7 @@ class Agent_marketplace:
 
         connect_vllm_api()
 
-    def start_browsing(self, query_to_type="мужская рубашка в гавайском стиле"):
+    def start_browsing(self, query_to_type="мужская рубашка в гавайском стиле", product_id = 0, qeury_type = 'notstated'):
         """Здесь будет логика хождения агента по браузеру, пока что тут просто один клик"""
         '''
         screenshot_path = "Agent_Marketplace/main_screen.png"
@@ -46,7 +47,7 @@ class Agent_marketplace:
                 press_enter=True,
             )
             page = make_screenshot(page, output_image_path="Agent_Marketplace/artifacts/screen2.png")
-
+            title_list, url_list, url_photo_list = [], [], []
             for i in range(1, 4):
                 with page.context.expect_page() as new_page_info:
                     page = click(
@@ -74,14 +75,39 @@ class Agent_marketplace:
 
                 # Получаем URL страницы товара
                 product_url = return_product_page_url(new_page, output_text.strip())
-
+                title_list.append(output_text.strip())
                 if product_url:
                     print("URL карточки товара:", product_url)
+                    url_list.append(product_url)
                 else:
                     print("Не удалось получить URL карточки", None)
+                    url_list.append('error')
 
+                photo_url = return_image_url(new_page, output_text.strip())
 
+                if photo_url:
+                    print("URL фото товара:", photo_url)
+                    url_photo_list.append(photo_url)
+                else:
+                    print("Не удалось получить URL фото", None)
+                    url_photo_list.append('error')
 
+            products = []
+            for i in range(3):
+
+                d = {
+                    'title': title_list[i],
+                    'url': url_list[i],
+                    'photo_url': url_photo_list[i]
+                }
+                products.append(d)
+
+                data = {"products": products}
+
+            with open(f"eval/baseline_{product_id}_{qeury_type}_cards.json", "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+
+            print(f"JSON создан: baseline_{product_id}_{qeury_type}_cards.json")
 
     def sanitize_folder_name(name: str) -> str:
         """Очищает строку, чтобы можно было использовать как имя папки."""
