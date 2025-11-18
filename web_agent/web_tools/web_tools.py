@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Sequence
 from datetime import datetime
 
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PlaywrightTimeoutError, Locator
@@ -11,6 +11,7 @@ from playwright.sync_api import sync_playwright, Page, TimeoutError as Playwrigh
 from web_agent.web_tools.utils import _draw_click_marker, get_screen_size
 
 _WEB_AGENT_SINGLETON: Optional["WebAgent"] = None
+AUTH_STATE_PATH =  Path(__file__).parents[1]/Path("auth/yandex_state.json")
 
 
 
@@ -29,6 +30,7 @@ class WebAgent:
         user_agent: Optional[str] = None,
         screenshot_path: Path = Path("web_agent/screenshots"),
         browser_type: str = "chromium",
+        storage_state_path: Optional[Path] = None,
     ):
         self.headless = headless
         self.start_url = url
@@ -68,6 +70,10 @@ class WebAgent:
         if self.user_agent:
             context_kwargs["user_agent"] = self.user_agent
 
+        print(storage_state_path)
+        if storage_state_path is not None and storage_state_path:
+            context_kwargs["storage_state"] = storage_state_path
+        print(context_kwargs)
         self._context = self._browser.new_context(**context_kwargs)
         self.page: Page = self._context.new_page()
 
@@ -371,6 +377,86 @@ class WebAgent:
 
         return self.screenshot(prefix="price")
 
+    def open_cart(self) -> None:
+        """Открыть страницу корзины Маркета."""
+        self.page.goto("https://market.yandex.ru/my/cart", wait_until="domcontentloaded", timeout=5000)
+        self.page.wait_for_timeout(1000)
+
+    def clear_cart(self, wait_ms: int = 500) -> None:
+        """
+        Очищает корзину: кликает по кнопкам удаления товаров.
+        Использует data-auto="remove-button", как в твоём HTML.
+        """
+        self.open_cart()
+
+        while True:
+            remove_buttons = self.page.locator('[data-auto="remove-button"][role="button"]')
+            count = remove_buttons.count()
+            if count == 0:
+                break
+
+            # Удаляем по одному
+            remove_buttons.first.click()
+            self.page.wait_for_timeout(wait_ms)
+
+    def add_products_to_cart_and_get_share_link(
+        self,
+        product_urls: Sequence[str],
+        clear_before: bool = True,
+        wait_after_click_ms: int = 1500,
+    ) -> str:
+        """
+        1) При необходимости очищает корзину.
+        2) Добавляет товары по списку URL карточек.
+        3) Возвращает URL из кнопки 'Поделиться' в корзине.
+        """
+
+        if clear_before:
+            self.clear_cart()
+
+        for url in product_urls:
+            print(f"[add_to_cart] Открываю {url}")
+            self.page.goto(url, wait_until="domcontentloaded")
+            self.page.wait_for_timeout(800)
+
+            # Кнопка 'В корзину'
+            add_btn = self.page.locator('button[data-auto="cartButton"]')
+            if add_btn.count() == 0:
+                # fallback: вдруг вёрстку поменяют, оставим чуть более общий селектор
+                add_btn = self.page.locator('[data-auto="cartButton"]')
+
+            if add_btn.count() == 0:
+                raise RuntimeError(f"Не нашёл кнопку 'В корзину' для {url}")
+
+            add_btn.first.click()
+            print(f"[add_to_cart] Товар с {url} добавлен в корзину")
+
+            self.page.wait_for_timeout(wait_after_click_ms)
+
+        # 3. Открыть корзину и нажать 'Поделиться'
+        self.open_cart()
+        self.page.wait_for_timeout(3000)
+        share_btn = self.page.get_by_text("Поделиться", exact=True)
+        if share_btn.count() == 0:
+            share_btn = self.page.locator('span:has-text("Поделиться")')
+
+        if share_btn.count() == 0:
+            raise RuntimeError("Не нашёл кнопку 'Поделиться' в корзине")
+
+        share_btn.first.click()
+
+        self._context.grant_permissions(
+            ["clipboard-read", "clipboard-write"],
+            origin="https://market.yandex.ru",
+        )
+
+        share_btn.first.click()
+        self.page.wait_for_timeout(500)
+
+        # прочитать ссылку из буфера
+        share_url = self.page.evaluate("navigator.clipboard.readText()")
+        print(f"[add_to_cart] Ссылка для 'Поделиться': {share_url}")
+        return share_url
 
 # ---------- singleton-хелперы, которые дергает __init__.py ----------
 
@@ -398,6 +484,7 @@ def get_agent(
             user_agent=user_agent,
             screenshot_path=screenshot_path,
             browser_type=browser_type,
+            storage_state_path=AUTH_STATE_PATH,
         )
     return _WEB_AGENT_SINGLETON
 
