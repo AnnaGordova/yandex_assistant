@@ -2,7 +2,7 @@ import re
 import time
 from openai import OpenAI
 from Agent_Marketplace.system_prompt2 import SYSTEM_PROMPT
-from Agent_Marketplace.tools import click, open_browser, make_screenshot, click_and_type, scroll, describe_product_from_image, click_card_and_return_image_url_if_match
+from Agent_Marketplace.tools import click, open_browser, make_screenshot, click_and_type, scroll, describe_product_from_image, return_product_page_url
 from playwright.sync_api import sync_playwright
 import os
 
@@ -42,7 +42,7 @@ class Agent_marketplace:
                 user_query="Найди координаты середины строки поиска в формате [x, y].",
                 client_openai=self.client,
                 model_id=self.model,
-                text_to_type="Желтая гавайская рубашка",
+                text_to_type="мужская рубашка в гавайском стиле",
                 press_enter=True,
             )
             page = make_screenshot(page, output_image_path="Agent_Marketplace/artifacts/screen2.png")
@@ -56,7 +56,7 @@ class Agent_marketplace:
                     model_id=self.model,
                 )
                 new_page = new_page_info.value
-                time.sleep(3)
+                time.sleep(5)
 
             # Теперь делайте скриншот НОВОЙ страницы:
             new_page.screenshot(path="Agent_Marketplace/artifacts/screen3.png")
@@ -71,17 +71,13 @@ class Agent_marketplace:
             )
 
 
-            # Получаем URL изображения по alt (названию товара)
-            img_url = click_card_and_return_image_url_if_match(new_page, output_text.strip())
-            print(img_url)
+            # Получаем URL страницы товара
+            product_url = return_product_page_url(new_page, output_text.strip())  
 
-
-            if img_url:
-                return "URL картинки товара:", img_url
+            if product_url:
+                return "URL карточки товара:", product_url
             else:
-                return "Не удалось получить URL изображения", None
-
-            time.sleep(5)
+                return "Не удалось получить URL карточки", None
 
     import os
     import re
@@ -204,7 +200,7 @@ class Agent_marketplace:
                         title = re.search(r"Название:\s*(.*)", found_products[-1]["description"]).group(1)
                     except:
                         title = "неизвестный товар"
-                    img_url = click_card_and_return_image_url_if_match(page, title)
+                    img_url = return_image_url(page, title)
                     if img_url:
                         found_products[-1]["image_url"] = img_url
                     messages.append({"role": "user", "content": f"URL изображения: {img_url}"})

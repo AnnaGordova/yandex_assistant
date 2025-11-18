@@ -288,8 +288,8 @@ def scroll(
     time.sleep(delay_after)
     return page
 
-
-def click_card_and_return_image_url_if_match(page, alt_text_contains):
+# изменила, чтобы явно возвращся none, если не найдена ссылка такая
+def return_image_url(page, alt_text_contains):
     """
     Находит изображение на текущей странице по тексту в alt и возвращает его URL.
     """
@@ -297,7 +297,13 @@ def click_card_and_return_image_url_if_match(page, alt_text_contains):
     () => {{
         // Ищем изображение, в alt которого есть указанный текст
         const img = Array.from(document.querySelectorAll('img[alt*="{alt_text_contains}"]'))[0];
-        return img.src;     
+        // Проверяем, найдено ли изображение
+        if (img) {{
+            return img.src;
+        }} else {{
+            // Возвращаем null, если изображение не найдено
+            return null;
+        }}
     }}
     """
     img_url = page.evaluate(js_code)
@@ -331,8 +337,17 @@ def describe_product_from_image(
     if not base64_image:
         raise ValueError("Failed to encode image")
 
+    # ЯВНЫЙ СИСТЕМНЫЙ ПРОМПТ для этого вызова
+    system_prompt = """Ты описываешь товары с изображений. 
+ВАЖНО: Всегда возвращай ЧИСТЫЙ ТЕКСТ без форматирования Markdown (**звездочки**, *курсив* и т.д.).
+Используй только простой текст."""
+
     # Сообщения для модели
     messages = [
+        {
+            "role": "system",  
+            "content": system_prompt
+        },
         {
             "role": "user",
             "content": [
@@ -356,5 +371,25 @@ def describe_product_from_image(
     print("\n=== Model Output ===")
     print(output_text)
 
-    # Возвращаем только текст — без координат и рисования точек
-    return output_text, output_image_path
+    # Дополнительная очистка на всякий случай
+    clean_text = re.sub(r'\*\*(.*?)\*\*', r'\1', output_text)
+    clean_text = re.sub(r'\*(.*?)\*', r'\1', clean_text)
+    
+    return clean_text, output_image_path  # ← Возвращаем очищенный текст
+
+
+def return_product_page_url(page, product_name=None):
+    """
+    Возвращает URL текущей страницы товара
+    product_name - опционально, для логирования
+    """
+    try:
+        current_url = page.url
+        if product_name:
+            print(f"URL карточки товара '{product_name}': {current_url}")
+        else:
+            print(f"URL карточки товара: {current_url}")
+        return current_url
+    except Exception as e:
+        print(f"Ошибка при получении URL страницы: {e}")
+        return None
