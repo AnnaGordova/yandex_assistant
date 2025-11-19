@@ -1,2 +1,11 @@
 venv/
+.venv/
 .idea
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyc
+
+.env
+
+.vscode/
