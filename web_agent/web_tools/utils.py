@@ -16,7 +16,7 @@ def get_screen_size() -> tuple[int, int]:
         print(f"Screen size founded: {w}x{h}")
         return w, h
     except Exception:
-        return 1920, 1080
+        return 1280, 720
 
 def _draw_click_marker(path: Path, x_px: int, y_px: int, color: str = "red") -> None:
     """

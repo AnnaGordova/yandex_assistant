@@ -90,7 +90,7 @@ class WebAgent:
 
     def screenshot(self, prefix: str = "ym") -> Path:
         path = self._make_screenshot_path(prefix)
-        self.page.screenshot(path=str(path), full_page=False)
+        self.page.screenshot(path=str(path), full_page=False, type="jpeg", quality=60)
         return path
 
     def close(self):
@@ -115,7 +115,7 @@ class WebAgent:
             y: int,
             button: str = "left",
             click_count: int = 1,
-            wait_after_ms: int = 400,
+            wait_after_ms: int = 200,
     ) -> Path:
         """
         x, y – координаты в диапазоне [0, 1000] относительно текущего viewport’а.
@@ -149,7 +149,7 @@ class WebAgent:
 
         if new_page is not None:
             try:
-                new_page.wait_for_load_state("domcontentloaded", timeout=15000)
+                new_page.wait_for_load_state("domcontentloaded", timeout=8000)
             except PlaywrightTimeoutError:
                 pass
 
@@ -160,18 +160,18 @@ class WebAgent:
                 pass
             if target_url:
                 try:
-                    self.page.goto(target_url, wait_until="domcontentloaded", timeout=15000)
-                    try:
-                        self.page.wait_for_load_state("networkidle", timeout=5000)
-                    except PlaywrightTimeoutError:
-                        pass
+                    self.page.goto(target_url, wait_until="domcontentloaded", timeout=8000)
+                    # try:
+                    #     self.page.wait_for_load_state("networkidle", timeout=5000)
+                    # except PlaywrightTimeoutError:
+                    #     pass
                 except PlaywrightTimeoutError:
                     pass
         else:
             # Навигация в той же вкладке или просто клик по фильтру
             try:
                 # если клик действительно триггерит загрузку, поймаем её
-                self.page.wait_for_load_state("domcontentloaded", timeout=3000)
+                self.page.wait_for_load_state("domcontentloaded", timeout=2000)
             except PlaywrightTimeoutError:
                 pass
 
@@ -316,13 +316,13 @@ class WebAgent:
         """
 
         def _fill(locator: Locator, value: int):
-            self.page.wait_for_load_state("domcontentloaded", timeout=8000)
+            self.page.wait_for_load_state("domcontentloaded", timeout=5000)
             locator.click()
             # на всякий случай подчистим поле
             locator.press("Control+A")
             locator.press("Delete")
             locator.fill(str(value))
-            self.page.wait_for_timeout(400)
+            self.page.wait_for_timeout(200)
             locator.press("Enter")
 
         try:
@@ -359,10 +359,10 @@ class WebAgent:
                     print("set_price_filter: max input not found")
 
             try:
-                self.page.wait_for_load_state("domcontentloaded", timeout=10000)
+                self.page.wait_for_load_state("domcontentloaded", timeout=5000)
             except PlaywrightTimeoutError:
                 pass
-            self.page.wait_for_timeout(800)
+            self.page.wait_for_timeout(200)
 
         except PlaywrightTimeoutError:
             pass
@@ -465,7 +465,7 @@ def get_agent(
 
     if viewport is None:
         # если вдруг не передали – на всякий случай зададим дефолт
-        viewport = (1920, 1080)
+        viewport = (1280, 720)
 
     if _WEB_AGENT_SINGLETON is None:
         _WEB_AGENT_SINGLETON = WebAgent(

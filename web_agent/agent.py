@@ -27,10 +27,10 @@ llm_cfg = {
 _agent_singleton: Optional[Assistant] = None
 _web_agent_singleton: Optional[WebAgent] = None
 
-DEFAULT_SLOW_MO_MS = 100
+DEFAULT_SLOW_MO_MS = 50
 
 
-def init_agent(show_browser: bool = True) -> Tuple[Assistant, WebAgent]:
+def init_agent(show_browser: bool = False) -> Tuple[Assistant, WebAgent]:
     """
     Инициализация агентов.
     """
@@ -52,7 +52,7 @@ def init_agent(show_browser: bool = True) -> Tuple[Assistant, WebAgent]:
     return agent, web_agent
 
 
-def get_agents(show_browser: bool = True) -> Tuple[Assistant, WebAgent]:
+def get_agents(show_browser: bool = False) -> Tuple[Assistant, WebAgent]:
     """
     Возвращает созданный или существующий экземпляр Assistant и WebAgent.
     """

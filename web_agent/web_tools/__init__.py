@@ -14,7 +14,7 @@ logger = getLogger(__name__)
 def init_session(
         headless: bool = False,
         url: str = "https://market.yandex.ru/",
-        slow_mo_ms: int = 1000,
+        slow_mo_ms: int = 100,
         viewport: Optional[tuple[int, int]] = None,
         user_agent: Optional[str] = None,
         screenshot_path: Path = Path("web-tools/screenshots"),
@@ -300,7 +300,7 @@ class ScrollTool(BaseTool):
 
 @register_tool("wait")
 class WaitTool(BaseTool):
-    description = "Waits for a specified number of milliseconds, then returns a screenshot."
+    description = "Waits for a specified number of milliseconds (200-500 ms), then returns a screenshot."
     parameters = [
         {
             'name': 'ms',
@@ -312,7 +312,7 @@ class WaitTool(BaseTool):
 
     def call(self, params: str, **kwargs) -> List[ContentItem]:
         args = json5.loads(params) if params else {}
-        ms = args.get('ms', 1000)
+        ms = args.get('ms', 300)
         agent = get_agent()
         path = agent.wait(ms=ms)
         return [ContentItem(image=str(path))]
