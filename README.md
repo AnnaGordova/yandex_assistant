@@ -6,7 +6,12 @@
 2. `Tbank-Backend-main` - в этой директории находится бэкенд на Go;
 3. `front_tbank-main` - директория с фронтендом;
 
-## Архитектура работы ML-пайплайна 
 
+## Архитектура работы cистемы
 
 <div align="center"><img src="readme_pictures\Agent.PNG" width="50%" /></div>
+
+## Архитектура работы ML-пайплайна 
+
+<div align="center"><img src="readme_pictures\system.JPG" width="50%" /></div>
+
