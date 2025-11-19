@@ -2,39 +2,37 @@ import asyncio
 import json
 import uuid
 
-import websockets  # pip install websockets
-
+import websockets
+from websockets.exceptions import ConnectionClosedError
 
 WS_URI = "ws://127.0.0.1:8770"
 
 
 async def dialog_client():
-    # Один токен на всю сессию (как будто один пользователь)
     token = "debug-" + uuid.uuid4().hex[:8]
     email = "test@example.com"
 
-    # Параметры можно захардкодить для дебага
     params = {
         "address": "Москва, Россия",
         "budget": "10000",
         "wishes": "комфортно и стильно",
     }
 
-    chat_history = []  # список {text, isUser}
-    last_buttons = []  # список кнопок из последнего ответа
+    chat_history = []
+    last_buttons = []
 
     print(f"Подключаюсь к {WS_URI} с token={token} ...")
     async with websockets.connect(WS_URI, ping_interval=None) as ws:
         print("Готово! Пиши сообщение. 'exit' — выход.\n")
 
         while True:
-            # Показать последние кнопки, если есть
+            # показать кнопки, если есть
             if last_buttons:
                 print("\nДоступные кнопки:")
                 for i, btn in enumerate(last_buttons, start=1):
                     text = btn.get("text", "")
                     value = btn.get("value", "")
-                    print(f"  [{i}] {text}  ({value})")
+                    print(f"  [{i}] {text} ({value})")
                 print("Можешь ввести номер кнопки, чтобы 'нажать' её.\n")
 
             user_input = input("Вы: ").strip()
@@ -43,8 +41,8 @@ async def dialog_client():
             if user_input.lower() in ("exit", "quit", "q"):
                 break
 
-            # Если пользователь ввёл число и есть кнопки — считаем это нажатием кнопки
             message_to_send = user_input
+            # если введено число — считаем это нажатием кнопки
             if user_input.isdigit() and last_buttons:
                 idx = int(user_input)
                 if 1 <= idx <= len(last_buttons):
@@ -52,7 +50,6 @@ async def dialog_client():
                     message_to_send = btn.get("value", "")
                     print(f"(нажата кнопка [{idx}] → message={message_to_send!r})")
 
-            # Добавляем ход пользователя в историю
             chat_history.append({"text": message_to_send, "isUser": True})
 
             payload = {
@@ -63,27 +60,37 @@ async def dialog_client():
                 "chatHistory": chat_history,
             }
 
-            # Отправляем запрос
-            await ws.send(json.dumps(payload, ensure_ascii=False))
-            raw_resp = await ws.recv()
+            try:
+                await ws.send(json.dumps(payload, ensure_ascii=False))
+                raw_resp = await ws.recv()
+            except ConnectionClosedError as e:
+                print(f"\n‼️ Соединение закрыто: {e}")
+                break
 
+            print("\n<< RAW RESPONSE:")
+            print(raw_resp)
+
+            # безопасный разбор
             try:
                 resp = json.loads(raw_resp)
-            except json.JSONDecodeError:
-                print("\n‼️ Не удалось распарсить ответ как JSON:")
-                print(raw_resp)
+            except json.JSONDecodeError as e:
+                print(f"\n‼️ Не удалось распарсить JSON: {e}")
                 continue
 
-            # Разбираем ответ адаптера: MessageAnswer
+            if not isinstance(resp, dict):
+                print("\n‼️ Ответ не является объектом JSON (dict), а:", type(resp))
+                print("Содержимое:", resp)
+                # на всякий случай не падаем, просто продолжаем цикл
+                continue
+
+            # дальше можно безопасно делать resp.get(...)
             message = resp.get("message") or ""
             products = resp.get("products") or []
             buttons = resp.get("buttons") or []
 
-            # Логика: текст ассистента добавляем в историю
             if message:
                 chat_history.append({"text": message, "isUser": False})
 
-            # Печатаем ответ
             print("\nАссистент:")
             print(message or "(пустое сообщение)")
 
@@ -101,9 +108,7 @@ async def dialog_client():
                     print(f"      Ссылка: {link}")
                 print()
 
-            # Сохраняем кнопки для следующего шага
             last_buttons = buttons
-
             print("-" * 80)
 
 

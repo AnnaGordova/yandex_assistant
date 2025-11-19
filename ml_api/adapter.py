@@ -1,20 +1,14 @@
-# adapter.py
 import json
 import logging
-from typing import Any, Dict, List
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 from Agent_NLP.agent_ws import Agent_nlp
 from web_agent.agent import get_agents, run_agent
 from utils import candidates_to_products  # твоя функция-обёртка над get_saved_candidates()
 
-# --------------------------------------------------------------------
-# Логгер
-# --------------------------------------------------------------------
-
 logger = logging.getLogger("adapter")
 
-# Если модуль запустили как скрипт — настроим простой вывод в консоль.
-# Внутри сервиса можно переконфигурировать логгер снаружи.
 if not logger.handlers:
     handler = logging.StreamHandler()
     formatter = logging.Formatter(
@@ -26,18 +20,18 @@ if not logger.handlers:
     logger.setLevel(logging.INFO)
 
 
-# --------------------------------------------------------------------
-# Вспомогательные функции
-# --------------------------------------------------------------------
+# ---- session state ----
+
+@dataclass
+class AdapterSession:
+    token: str
+    items: List[Dict[str, Any]] = field(default_factory=list)   # план вещей от NLP
+    current_item_index: Optional[int] = None                    # какая вещь сейчас в работе
 
 
 def _build_system_prompt_from_params(params: Dict[str, Any]) -> str:
-    """
-    Делаем аккуратный system-подсказчик для NLP-агента из MessageParams.
-    """
     if not params:
         return ""
-
     parts: List[str] = []
     address = params.get("address") or params.get("Address")
     budget = params.get("budget") or params.get("Budget")
@@ -52,7 +46,6 @@ def _build_system_prompt_from_params(params: Dict[str, Any]) -> str:
 
     if not parts:
         return ""
-
     return (
         "Контекст от бэкенда (не задавай эти вопросы заново, а используй как факты): "
         + " ".join(parts)
@@ -60,18 +53,13 @@ def _build_system_prompt_from_params(params: Dict[str, Any]) -> str:
 
 
 def _history_to_nlp_dialog(message_request: Dict[str, Any]) -> List[Dict[str, str]]:
-    """
-    Преобразует MessageRequest из Go в формат диалога для NLP-агента.
-    """
     dialog: List[Dict[str, str]] = []
 
-    # 1) system-контекст с address/budget/wishes
     params = message_request.get("params") or {}
     sys_prompt = _build_system_prompt_from_params(params)
     if sys_prompt:
         dialog.append({"role": "system", "content": sys_prompt})
 
-    # 2) история чата
     chat_history = message_request.get("chatHistory") or []
     for turn in chat_history:
         text = turn.get("text") or turn.get("Text") or ""
@@ -81,10 +69,8 @@ def _history_to_nlp_dialog(message_request: Dict[str, Any]) -> List[Dict[str, st
         role = "user" if is_user else "assistant"
         dialog.append({"role": role, "content": text})
 
-    # 3) текущее сообщение (на всякий случай)
     msg = (message_request.get("message") or "").strip()
     if msg:
-        # если история пуста или последнее сообщение в истории другое — добавим
         if not chat_history or chat_history[-1].get("text") != msg:
             dialog.append({"role": "user", "content": msg})
 
@@ -92,80 +78,95 @@ def _history_to_nlp_dialog(message_request: Dict[str, Any]) -> List[Dict[str, st
 
 
 def _history_to_web_text(message_request: Dict[str, Any]) -> str:
-    """
-    Текстовая история для web-агента. Можно без ролей, просто контекст.
-    """
     parts: List[str] = []
     chat_history = message_request.get("chatHistory") or []
     for turn in chat_history:
         text = turn.get("text") or turn.get("Text") or ""
         if text:
             parts.append(text)
-
     msg = (message_request.get("message") or "").strip()
     if msg:
         parts.append(msg)
-
     return "\n".join(parts)
 
 
-# --------------------------------------------------------------------
-# Основной адаптер
-# --------------------------------------------------------------------
+def _safe_json(obj: Any) -> str:
+    try:
+        return json.dumps(obj, ensure_ascii=False)
+    except Exception:
+        return repr(obj)
 
 
 class Adapter:
     """
     Адаптер между:
-      - Go MessageRequest
-      - NLP-агентом (диалог/планировщик)
-      - web-агентом (поиск по маркетплейсу)
-      - Go MessageAnswer (message + products + buttons)
+      - MessageRequest (Go)
+      - NLP-агентом
+      - Web-агентом
+      - MessageAnswer (Go)
     """
 
     def __init__(self) -> None:
         logger.info("Initializing Adapter...")
 
-        # NLP-агент
         self.nlp_agent = Agent_nlp()
         logger.info("NLP agent initialized")
 
-        # web-агент (assistant + agent для computer-use)
         self.web_assistant, self.web_agent = get_agents(show_browser=True)
         logger.info("Web agent initialized")
 
+        # сессии по token
+        self.sessions: Dict[str, AdapterSession] = {}
+
         logger.info("Adapter initialized successfully")
 
-    # ------------------------ Публичный API -------------------------
+    # ---- session helpers ----
+
+    def _get_session(self, token: str) -> AdapterSession:
+        if not token:
+            token = "_anonymous"
+        session = self.sessions.get(token)
+        if session is None:
+            session = AdapterSession(token=token)
+            self.sessions[token] = session
+        return session
+
+    # ---- main entry ----
 
     def process_message_request(self, message_request: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Главная точка входа: принимает MessageRequest (JSON от Go),
-        возвращает MessageAnswer.
-        """
         email = message_request.get("email") or ""
         token = message_request.get("token") or ""
         short_token = token[:8] + "..." if token else ""
+
+        session = self._get_session(token)
+
+        msg_raw = (message_request.get("message") or "").strip()
 
         logger.info(
             "Received MessageRequest: email=%s token=%s message=%r",
             email,
             short_token,
-            (message_request.get("message") or "")[:200],
+            msg_raw[:200],
         )
 
         try:
+            # ----------------- 0. спец-команда: next_item -----------------
+            if msg_raw == "next_item" and session.items and session.current_item_index is not None:
+                # отдельная функция уже возвращает готовый MessageAnswer
+                return self._handle_next_item(message_request, session)
+
+            # (сюда же можно потом добавить обработку like:/dislike:, но пока не трогаем)
+
+            # ----------------- 1. запускаем NLP -----------------
             dialog = _history_to_nlp_dialog(message_request)
             logger.debug("Built NLP dialog with %d turns", len(dialog))
 
-            # --- шаг 1: NLP-агент ---
             nlp_result = self._run_nlp(dialog)
             logger.debug("NLP result raw: %s", _safe_json(nlp_result))
 
             status = (nlp_result.get("status") or "ok").lower()
             items = nlp_result.get("items") or []
 
-            # Текст, который NLP хочет показать пользователю прямо сейчас
             nlp_text = (
                 nlp_result.get("questions")
                 or nlp_result.get("answer")
@@ -180,7 +181,7 @@ class Adapter:
                 bool(nlp_text),
             )
 
-            # --- режим только вопросов (ещё рано идти в web) ---
+            # ----------------- 2. только вопросы → сразу ответ -----------------
             if status == "questions":
                 logger.info("NLP requests clarification questions, no web search yet")
                 return {
@@ -189,25 +190,51 @@ class Adapter:
                     "buttons": [],
                 }
 
-            # --- режим: уже есть список вещей, нужно идти в web по каждой ---
+            # дальше во всех ветках мы будем вычислять web_text,
+            # а в конце — ОДИН раз собирать MessageAnswer.
             history_text = _history_to_web_text(message_request)
+            web_text = ""
 
-            if status == "ok" and items:
-                logger.info("NLP returned items list, running web search for each item")
-                web_text = self._run_web_for_items(items, history_text)
+            # ----------------- 3. режим уточнения текущей вещи -----------------
+            if status == "ok" and items and session.items and session.current_item_index is not None:
+                logger.info(
+                    "NLP returned items while plan already exists — treating as refinement "
+                    "for current item #%d/%d",
+                    session.current_item_index + 1,
+                    len(session.items),
+                )
+
+                # Берём только первую вещь из нового результата как уточнённое описание
+                new_item = items[0]
+                session.items[session.current_item_index] = new_item
+
+                web_text = self._run_web_for_current_item(session, history_text)
+
+            # ----------------- 4. новый план из нескольких вещей -----------------
+            elif status == "ok" and items:
+                logger.info("NLP returned new items list, starting with first item only")
+
+                session.items = items
+                session.current_item_index = 0
+
+                web_text = self._run_web_for_current_item(session, history_text)
+
+            # ----------------- 5. одиночный запрос (без плана) -----------------
             else:
-                # fallback: одиночный запрос в web-агент
                 logger.info("NLP requests single web search (status=%s)", status)
                 web_text = self._run_web_single(nlp_result, message_request, history_text)
 
-            # --- после web-агента: достаём все сохранённые кандидаты ---
-            products = candidates_to_products()
+                # сбрасываем план, если был
+                session.items = []
+                session.current_item_index = None
+
+            # ----------------- 6. общий хвост: достаём продукты и собираем ответ -----------------
+            # ВАЖНО: сюда приходим из ВСЕХ веток 3–5, поэтому метод ВСЕГДА что-то возвращает.
+            products = candidates_to_products()  # clear=True внутри utils
             logger.info("Collected %d products from web_agent", len(products))
 
-            # Финальный текст для пользователя
-            final_message = self._build_final_message(nlp_text, web_text, products)
-
-            buttons = self._build_buttons_for_products(products)
+            final_message = self._build_final_message(nlp_text, web_text, products, session)
+            buttons = self._build_buttons_for_products(products, session)
 
             answer = {
                 "message": final_message,
@@ -220,20 +247,17 @@ class Adapter:
 
         except Exception as e:
             logger.exception("Error in Adapter.process_message_request: %s", e)
-            # fallback-ответ, чтобы Go не падал на пустом ответе
+            # fallback-ответ, чтобы ws-сервер НИКОГДА не отправлял null
             return {
                 "message": "Произошла внутренняя ошибка при обработке запроса.",
                 "products": [],
                 "buttons": [],
             }
 
-    # ------------------------ Внутреннее: NLP -------------------------
+
+    # ---- NLP ----
 
     def _run_nlp(self, dialog: List[Dict[str, str]]) -> Dict[str, Any]:
-        """
-        Обёртка над NLP-агентом с логированием.
-        Предполагается интерфейс Agent_nlp.process_dialog(dialog) -> dict.
-        """
         logger.info("Calling NLP agent with %d dialog turns", len(dialog))
         result = self.nlp_agent.process_dialog(dialog)
         if not isinstance(result, dict):
@@ -241,7 +265,7 @@ class Adapter:
             result = {"status": "ok", "answer": str(result)}
         return result
 
-    # ------------------------ Внутреннее: Web -------------------------
+    # ---- Web: одиночный запрос ----
 
     def _run_web_single(
         self,
@@ -275,69 +299,133 @@ class Adapter:
         logger.debug("Web_agent single result text (truncated): %r", web_text[:500])
         return web_text
 
-    def _run_web_for_items(
-        self,
-        items: List[Dict[str, Any]],
-        history_text: str,
-    ) -> str:
-        """
-        Обрабатывает ВСЕ items из NLP-агента:
-        для каждой вещи формирует промпт и вызывает web-агента.
-        Возвращает склеенный текстовый отчёт.
-        """
-        blocks: List[str] = []
+    # ---- Web: текущая вещь из плана ----
 
-        for idx, item in enumerate(items, start=1):
+    def _run_web_for_current_item(self, session: AdapterSession, history_text: str) -> str:
+        assert session.items and session.current_item_index is not None
+        idx = session.current_item_index
+        item = session.items[idx]
+
+        web_prompt = (
+            item.get("query")
+            or item.get("prompt")
+            or item.get("title")
+            or ""
+        )
+        if not web_prompt:
             web_prompt = (
-                item.get("query")
-                or item.get("prompt")
-                or item.get("title")
-                or ""
+                "Найди подходящий товар по описанию: "
+                + json.dumps(item, ensure_ascii=False)
             )
 
-            if not web_prompt:
-                web_prompt = f"Найди подходящий товар по описанию: {json.dumps(item, ensure_ascii=False)}"
+        logger.info(
+            "Running web_agent for item #%d/%d: %r",
+            idx + 1,
+            len(session.items),
+            web_prompt[:200],
+        )
+        logger.debug("Item #%d raw: %s", idx + 1, _safe_json(item))
+        logger.debug("Web history_text:\n%s", history_text)
 
-            logger.info("Running web_agent for item #%d: %r", idx, web_prompt[:200])
-            logger.debug("Item #%d raw: %s", idx, _safe_json(item))
-            logger.debug("Web history_text:\n%s", history_text)
+        web_text = run_agent(
+            user_query=web_prompt,
+            history_text=history_text,
+        )
 
-            web_text = run_agent(
-                user_query=web_prompt,
-                history_text=history_text
-            )
+        logger.info("Web_agent finished search for item #%d", idx + 1)
+        logger.debug(
+            "Web_agent result for item #%d (truncated): %r",
+            idx + 1,
+            web_text[:500],
+        )
+        return web_text
 
-            logger.info("Web_agent finished search for item #%d", idx)
-            logger.debug(
-                "Web_agent result for item #%d (truncated): %r", idx, web_text[:500]
-            )
+    # ---- переход к следующей вещи ----
 
-            blocks.append(
-                f"=== Вещь {idx} ===\n"
-                f"Запрос: {web_prompt}\n\n"
-                f"{web_text}\n"
-            )
+    def _handle_next_item(
+        self,
+        message_request: Dict[str, Any],
+        session: AdapterSession,
+    ) -> Dict[str, Any]:
+        """
+        Обрабатывает message == 'next_item':
+        переключается на следующую вещь из session.items и запускает web-агента только по ней.
+        """
+        if session.current_item_index is None or not session.items:
+            logger.info("next_item received but no items in session")
+            return {
+                "message": "Список вещей для подбора пуст. Начнём сначала — опишите, что хотите купить.",
+                "products": [],
+                "buttons": [],
+            }
 
-        return "\n\n".join(blocks)
+        if session.current_item_index >= len(session.items) - 1:
+            logger.info("next_item received but already at last item")
+            return {
+                "message": "Мы уже подобрали товары по всем запланированным вещам 👌",
+                "products": [],
+                "buttons": [],
+            }
 
-    # ------------------------ Внутреннее: финальный ответ -------------------------
+        session.current_item_index += 1
+        logger.info(
+            "Switching to next item: #%d/%d",
+            session.current_item_index + 1,
+            len(session.items),
+        )
+
+        history_text = _history_to_web_text(message_request)
+        web_text = self._run_web_for_current_item(session, history_text)
+
+        products = candidates_to_products()
+        logger.info("Collected %d products for next item", len(products))
+
+        final_message = self._build_final_message("", web_text, products, session)
+        buttons = self._build_buttons_for_products(products, session)
+
+        answer = {
+            "message": final_message,
+            "products": products,
+            "buttons": buttons,
+        }
+        logger.debug("MessageAnswer (next_item): %s", _safe_json(answer))
+        return answer
+
+    # ---- финальный текст и кнопки ----
 
     def _build_final_message(
         self,
         nlp_text: str,
         web_text: str,
         products: List[Dict[str, Any]],
+        session: AdapterSession,
     ) -> str:
-        """
-        Собираем финальный текст для поля message в MessageAnswer.
-        """
         parts: List[str] = []
 
         if nlp_text:
             parts.append(nlp_text.strip())
 
+        # если есть несколько вещей — подчеркнём, для какой сейчас подбор
+        if session.items and session.current_item_index is not None:
+            idx = session.current_item_index
+            cur = session.items[idx]
+            title = cur.get("title") or cur.get("web_prompt") or cur.get("prompt") or ""
+            if title:
+                parts.append(f"Сейчас подбираем варианты для вещи №{idx + 1}: {title}")
+            else:
+                parts.append(f"Сейчас подбираем варианты для вещи №{idx + 1} из списка.")
+
         if products:
             parts.append(f"Я подобрал {len(products)} вариантов, вот они ниже 👇")
+            if (
+                session.items
+                and session.current_item_index is not None
+                and session.current_item_index < len(session.items) - 1
+            ):
+                parts.append(
+                    "Когда будете готовы перейти к следующей вещи, нажмите кнопку "
+                    "«Следующая вещь» или отправьте команду next_item."
+                )
         else:
             if web_text:
                 parts.append("Мне не удалось сохранить товары, но вот подробности поиска:")
@@ -352,24 +440,20 @@ class Adapter:
         return final_message
 
     def _build_buttons_for_products(
-        self, products: List[Dict[str, Any]]
+        self,
+        products: List[Dict[str, Any]],
+        session: AdapterSession,
     ) -> List[Dict[str, str]]:
-        """
-        Базовая раскладка кнопок: для каждого товара — like/dislike.
-        Фронт может использовать value как команду (например, передавать её в MessageRequest.message).
-        """
         buttons: List[Dict[str, str]] = []
 
         for i, p in enumerate(products, start=1):
             pid = p.get("id", i)
-            # Лайк — фронт пойдёт в /likeProduct с этим Product
             buttons.append(
                 {
                     "text": f"👍 Товар {i}",
                     "value": f"like:{pid}",
                 }
             )
-            # Дизлайк — фронт пошлёт новый messageML с message="dislike:<id>"
             buttons.append(
                 {
                     "text": f"👎 Товар {i}",
@@ -377,35 +461,30 @@ class Adapter:
                 }
             )
 
-        logger.debug("Built %d buttons for %d products", len(buttons), len(products))
+        # если есть ещё вещи в плане — добавляем кнопку перехода к следующей
+        if (
+            session.items
+            and session.current_item_index is not None
+            and session.current_item_index < len(session.items) - 1
+        ):
+            buttons.append(
+                {
+                    "text": "➡️ Следующая вещь",
+                    "value": "next_item",
+                }
+            )
+
+        logger.debug(
+            "Built %d buttons for %d products (items_in_plan=%d, current_index=%s)",
+            len(buttons),
+            len(products),
+            len(session.items),
+            session.current_item_index,
+        )
         return buttons
 
 
-# --------------------------------------------------------------------
-# Вспомогательное для логов
-# --------------------------------------------------------------------
-
-
-def _safe_json(obj: Any) -> str:
-    """
-    Аккуратно превращает объект в JSON-строку для логов.
-    """
-    try:
-        return json.dumps(obj, ensure_ascii=False)
-    except Exception:
-        return repr(obj)
-
-
-# --------------------------------------------------------------------
-# Простой ручной запуск для локального дебага
-# --------------------------------------------------------------------
-
 if __name__ == "__main__":
-    """
-    Пример ручного прогона адаптера из консоли:
-
-    echo '{"email":"test@example.com","message":"Хочу шорты и майку","token":"debug","params":{"address":"Москва","budget":"10000","wishes":"комфортно и стильно"},"chatHistory":[{"text":"Хочу шорты и майку","isUser":true}]}' | python adapter.py
-    """
     import sys
 
     logger.setLevel(logging.DEBUG)
@@ -413,16 +492,20 @@ if __name__ == "__main__":
     raw = sys.stdin.read()
     if not raw.strip():
         print("[]")
-        sys.exit(0)
+        raise SystemExit(0)
 
     try:
         req = json.loads(raw)
     except Exception as e:
         logger.error("Failed to parse stdin JSON: %s", e)
-        print(json.dumps({"message": "Bad JSON", "products": [], "buttons": []}, ensure_ascii=False))
-        sys.exit(1)
+        print(
+            json.dumps(
+                {"message": "Bad JSON", "products": [], "buttons": []},
+                ensure_ascii=False,
+            )
+        )
+        raise SystemExit(1)
 
     adapter = Adapter()
     ans = adapter.process_message_request(req)
-    # Для локального дебага — просто печатаем JSON без \n-протокола TCP
     print(json.dumps(ans, ensure_ascii=False))

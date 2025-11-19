@@ -1,45 +1,57 @@
+# utils.py
 import json
+from typing import Any, Dict, List
+
 from web_agent.web_tools import get_saved_candidates
 
 
-def candidate_to_product(idx: int, cand: dict) -> dict:
-    """
-    Преобразовать один saved candidate из RESULT_STORE в Product для Go.
-    """
-    desc_str = cand.get("description") or "{}"
-
+def _to_float(v: Any, default: float = 0.0) -> float:
     try:
-        desc = json.loads(desc_str)
-        if not isinstance(desc, dict):
-            desc = {}
+        return float(v)
     except Exception:
+        return default
+
+
+def _to_int(v: Any, default: int = 0) -> int:
+    try:
+        return int(v)
+    except Exception:
+        return default
+
+
+def candidate_to_product(idx: int, cand: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Преобразует одного кандидата из RESULT_STORE в Product для Go.
+    cand["description"] может быть как dict, так и строкой.
+    """
+    raw_desc = cand.get("description")
+
+    # 1. Приводим к dict + строке
+    if isinstance(raw_desc, dict):
+        desc = raw_desc
+        desc_str = json.dumps(desc, ensure_ascii=False)
+    elif isinstance(raw_desc, str):
+        try:
+            parsed = json.loads(raw_desc)
+            desc = parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            desc = {}
+        desc_str = raw_desc
+    else:
         desc = {}
+        desc_str = ""
 
-    def _float(key, default=0.0):
-        v = desc.get(key, default)
-        try:
-            return float(v)
-        except Exception:
-            return default
-
-    def _int(key, default=0):
-        v = desc.get(key, default)
-        try:
-            return int(v)
-        except Exception:
-            return default
-
-    price = _float("price", 0.0)
-    rating = _float("rating", 0.0)
-    reviews = _int("ammountOfReviews", 0)
+    price = _to_float(desc.get("price", 0.0), 0.0)
+    rating = _to_float(desc.get("rating", 0.0), 0.0)
+    reviews = _to_int(desc.get("ammountOfReviews", 0), 0)
     size = desc.get("size") or ""
-    count = _int("countOfProduct", 1)
+    count = _to_int(desc.get("countOfProduct", 1), 1)
 
     return {
         "id": int(idx),
         "name": cand.get("product_name", ""),
         "link": cand.get("url", ""),
-        # Сохраняем исходный JSON как строку — бэку будет удобно парсить
+        # Go ждёт строку, поэтому description — JSON-строка
         "description": desc_str,
         "price": price,
         "picture": cand.get("image_url") or "",
@@ -50,14 +62,15 @@ def candidate_to_product(idx: int, cand: dict) -> dict:
     }
 
 
-def candidates_to_products() -> list[dict]:
+def candidates_to_products(clear: bool = True) -> List[Dict[str, Any]]:
     """
-    Забрать все сохранённые кандидаты у web-агента и привести к Go Product.
+    Забирает всех сохранённых кандидатов у web-агента и приводит к Go Product.
     """
-    raw = get_saved_candidates(clear=True)  # {index: {...}}
-    products: list[dict] = []
+    raw = get_saved_candidates(clear=clear)  # {index: {...}}
+    products: List[Dict[str, Any]] = []
+
     for idx, cand in raw.items():
         products.append(candidate_to_product(idx, cand))
-    # Можно отсортировать по id, чтобы порядок был предсказуем
+
     products.sort(key=lambda p: p["id"])
     return products
