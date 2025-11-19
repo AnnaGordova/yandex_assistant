@@ -1,0 +1,7 @@
+openai
+websockets==12.*
+json5
+nest-asyncio
+playwright==1.48.0
+qwen-agent
+python-dateutil

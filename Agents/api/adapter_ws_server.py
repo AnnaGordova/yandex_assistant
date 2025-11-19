@@ -6,7 +6,7 @@ import traceback
 import websockets  # pip install websockets
 from websockets.exceptions import ConnectionClosedError
 
-from adapter import Adapter
+from Agents.api.adapter import Adapter
 
 # Инициализируем адаптер в главном потоке
 adapter = Adapter()
@@ -45,8 +45,8 @@ async def handle_connection(websocket):
 
 
 async def main():
-    host = "127.0.0.1"
-    port = 8770
+    host = "0.0.0.0"
+    port = 8766
 
     # ping_interval=None, ping_timeout=None — отключаем keepalive,
     # чтобы длинные сессии web-агента не рвали соединение

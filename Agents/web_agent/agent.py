@@ -65,7 +65,7 @@ def get_agents(show_browser: bool = False) -> Tuple[Assistant, WebAgent]:
 
 
 def run_agent(user_query: str, history_text: str | None = None) -> str:
-    agent, web_agent = get_agents(show_browser=True)
+    agent, web_agent = get_agents(show_browser=False)
 
     # Компактный контекст + новый запрос
     if history_text:

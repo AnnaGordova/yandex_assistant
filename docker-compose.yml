@@ -8,6 +8,8 @@ services:
       - "80:8081" 
     depends_on:
       - backend
+    networks:
+      - backend
 
   # === BACKEND ===
   backend:
@@ -22,15 +24,29 @@ services:
       # Настройки JWT
       - APIKEY=your_jwt_secret_here
       # Настройки ML
-      - ML_HOST=ml
+      - ML_HOST=agents
       - ML_PORT=8766
     depends_on:
       - postgres
-#      - ml
+      - agents
+    networks:
+      - agents
+      - backend
+      - frontend
     # для отладки можно открыть порт:
-    # ports:
-    #   - "3110:3110"
+    ports:
+       - "3110:3110"
 
+  agents:
+    build:
+      context: .
+      dockerfile: ./Agents/Dockerfile
+    container_name: agents
+    restart: unless-stopped
+    ports:
+      - "8766:8766"
+    networks:
+      - backend
   # === POSTGRESQL ===
   postgres:
     image: postgres:16
@@ -40,9 +56,20 @@ services:
       POSTGRES_DB: tbank  
     volumes:
       - pgdata:/var/lib/postgresql/data
-    # для отладки:
-    # ports:
-    #   - "5432:5432"
+    ports:
+       - "5432:5432"
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+  agents:
+    driver: bridge
+  frontend:
+    driver: bridge
+
+
 
 # === VOLUMES ===
 volumes:

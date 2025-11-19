@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from Agents.nlp_agent.agent_ws import Agent_nlp
 from Agents.web_agent.agent import get_agents, run_agent
-from utils import candidates_to_products  # твоя функция-обёртка над get_saved_candidates()
+from Agents.api.utils import candidates_to_products  # твоя функция-обёртка над get_saved_candidates()
 
 logger = logging.getLogger("adapter")
 
@@ -112,7 +112,7 @@ class Adapter:
         self.nlp_agent = Agent_nlp()
         logger.info("NLP agent initialized")
 
-        self.web_assistant, self.web_agent = get_agents(show_browser=True)
+        self.web_assistant, self.web_agent = get_agents(show_browser=False)
         logger.info("Web agent initialized")
 
         # сессии по token

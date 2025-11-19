@@ -5,7 +5,7 @@ import uuid
 import websockets
 from websockets.exceptions import ConnectionClosedError
 
-WS_URI = "ws://127.0.0.1:8770"
+WS_URI = "ws://127.0.0.1:8766"
 
 
 async def dialog_client():
