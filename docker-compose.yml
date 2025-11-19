@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # === FRONTEND ===
+  frontend:
+    build: ./front_tbank-main
+    ports:
+      - "80:8081" 
+    depends_on:
+      - backend
+
+  # === BACKEND ===
+  backend:
+    build: ./Tbank-Backend-main
+    environment:
+      # Настройки PostgreSQL
+      - USER=postgres_user
+      - PASS=postgres_password
+      - DBNAME=tbank
+      - DBHOST=postgres
+      - DBPORT=5432
+      # Настройки JWT
+      - APIKEY=your_jwt_secret_here
+      # Настройки ML
+      - ML_HOST=ml
+      - ML_PORT=8766
+    depends_on:
+      - postgres
+#      - ml
+    # для отладки можно открыть порт:
+    # ports:
+    #   - "3110:3110"
+
+  # === POSTGRESQL ===
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres_user
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_DB: tbank  
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # для отладки:
+    # ports:
+    #   - "5432:5432"
+
+# === VOLUMES ===
+volumes:
+  pgdata:  # сохраняет данные БД между перезапусками

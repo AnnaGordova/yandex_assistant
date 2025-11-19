@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ассистент подбора - Чат</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <a href="index.html" style="text-decoration: none; color: inherit;">AI Shopping Bot</a>
+            </div>
+            <div class="nav-links">
+                <a href="login.html" class="nav-link">Вход</a>
+                <a href="register.html" class="nav-link">Регистрация</a>
+            </div>
+        </div>
+    </nav>
+    <div class="app-container">
+        <!-- Левая панель: Чат -->
+        <main class="chat-container">
+            <div class="chat-header">
+                <h1>Ассистент подбора</h1>
+                <p class="subtitle">Уточняем параметры поездки</p>
+                <button class="undo-btn">← Отменить последнее действие</button>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <!-- Сообщения добавляются динамически -->
+            </div>
+
+            <div class="chat-input-area">
+                <input 
+                    type="text" 
+                    id="messageInput" 
+                    class="chat-input" 
+                    placeholder="Напишите сообщение..."
+                    autocomplete="off"
+                >
+                <button class="send-btn" id="sendBtn">→</button>
+            </div>
+        </main>
+
+        <!-- Правая панель -->
+        <aside class="right-panel">
+            <!-- Табы -->
+            <div class="tabs-header">
+                <button class="tab-btn active" data-tab="params">Параметры</button>
+                <button class="tab-btn" data-tab="cart">Корзина</button>
+            </div>
+
+            <!-- Содержимое табов -->
+            <div class="tabs-content">
+                <!-- ТАБ 1: ПАРАМЕТРЫ -->
+                <div class="tab-content active" id="tab-params">
+                    <div class="section-title">Параметры поездки</div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span class="param-icon">📍</span>
+                            <span>Место поездки</span>
+                        </div>
+                        <input 
+                            type="text" 
+                            id="addressInput" 
+                            class="param-input" 
+                            placeholder="Введите место"
+                        >
+                        <button class="edit-btn" onclick="saveParam('address')">✓</button>
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span class="param-icon">💰</span>
+                            <span>Бюджет</span>
+                        </div>
+                        <input 
+                            type="number" 
+                            id="budgetInput" 
+                            class="param-input" 
+                            placeholder="Введите бюджет"
+                        >
+                        <button class="edit-btn" onclick="saveParam('budget')">✓</button>
+                    </div>
+
+                    <div class="param-group">
+                        <div class="param-label">
+                            <span class="param-icon">💭</span>
+                            <span>Пожелания</span>
+                        </div>
+                        <textarea 
+                            id="wishesInput" 
+                            class="param-textarea" 
+                            placeholder="Введите ваши пожелания"
+                            rows="3"
+                        ></textarea>
+                        <button class="edit-btn" onclick="saveParam('wishes')">✓</button>
+                    </div>
+
+                    <div class="saved-params" id="savedParams">
+                        <div class="section-title">Сохраненные параметры</div>
+                        <div id="paramsList">
+                            <p class="empty-message">Параметры не заданы</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ТАБ 3: КОРЗИНА -->
+                <div class="tab-content" id="tab-cart">
+                    <div class="section-title">Корзина</div>
+
+                    <div class="cart-items" id="cartItems">
+                        <!-- Товары добавляются динамически -->
+                    </div>
+
+                    <div class="cart-summary" id="cartSummary" style="display: none;">
+                        <div class="summary-row">
+                            <span>Всего товаров:</span>
+                            <span id="totalItems">0</span>
+                        </div>
+                        <div class="summary-row total">
+                            <span>Сумма:</span>
+                            <span id="totalSum">0 ₽</span>
+                        </div>
+                        <button id="checkoutBtn" class="checkout-btn" onclick="checkoutCart()">🛒 Оформить заказ</button>
+                    </div>
+
+                    <div class="empty-cart" id="emptyCart">
+                        Корзина пуста
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script type="module" src="../src/app.js"></script>
+</body>
+</html>

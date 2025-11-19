@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Shopping Bot - Поиск товаров</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">AI Shopping Bot</div>
+            <div class="nav-links">
+                <a href="login.html" class="nav-link">Вход</a>
+                <a href="register.html" class="nav-link">Регистрация</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="landing-main">
+        <div class="search-container">
+            <h1 class="landing-title">Найдите нужные товары с помощью ИИ</h1>
+            <p class="landing-subtitle">Опишите, куда вы едете, и наш бот подберёт лучшие варианты предметов для поездки</p>
+
+            <form id="searchForm" class="search-form">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    class="search-input" 
+                    placeholder="Куда вы хотите отправться? Например поход в горы"
+                >
+                <button type="submit" class="search-button">Искать</button>
+            </form>
+
+            <div class="features">
+                <div class="feature">
+                    <span class="feature-icon">💬</span>
+                    <p>Диалог с ИИ</p>
+                </div>
+                <div class="feature">
+                    <span class="feature-icon">🛍️</span>
+                    <p>Умный подбор</p>
+                </div>
+                <div class="feature">
+                    <span class="feature-icon">🛒</span>
+                    <p>Удобная корзина</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.getElementById('searchForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const query = document.getElementById('searchInput').value.trim();
+
+            if (query) {
+                sessionStorage.setItem('searchQuery', query);
+            }
+
+            window.location.href = 'chat.html';
+        });
+    </script>
+</body>
+</html>

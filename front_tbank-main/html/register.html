@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация - AI Shopping Bot</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <a href="index.html" style="text-decoration: none; color: inherit;">AI Shopping Bot</a>
+            </div>
+            <div class="nav-links">
+                <a href="login.html" class="nav-link">Вход</a>
+            </div>
+        </div>
+    </nav>
+<script type="module" src="../src/login.js"></script>
+    <main class="auth-main">
+        <div class="auth-container">
+            <h1 class="auth-title">Создать аккаунт</h1>
+
+            <form id="registerForm" class="auth-form">
+
+                <div class="form-group">
+                    <label for="registerEmail">Email</label>
+                    <input 
+                        type="email" 
+                        id="registerEmail" 
+                        class="form-input" 
+                        placeholder="your@email.com"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="registerPassword">Пароль</label>
+                    <input 
+                        type="password" 
+                        id="registerPassword" 
+                        class="form-input" 
+                        placeholder="Минимум 8 символов"
+                        required
+                        minlength="8"
+                    >
+                    <small class="password-hint">
+                        Пароль должен содержать минимум 8 символов, заглавные и строчные буквы, а также специальные символы
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="registerPasswordConfirm">Подтвердите пароль</label>
+                    <input 
+                        type="password" 
+                        id="registerPasswordConfirm" 
+                        class="form-input" 
+                        placeholder="Повторите пароль"
+                        required
+                    >
+                </div>
+
+                <div id="registerError" class="error-message"></div>
+                <div id="registerSuccess" class="success-message"></div>
+
+                <button type="submit" class="submit-btn">Зарегистрироваться</button>
+
+                <div class="form-footer">
+                    <span>Уже есть аккаунт?</span>
+                    <a href="login.html" class="link">Войти</a>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    
+</body>
+</html>
