@@ -3,8 +3,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from Agent_NLP.agent_ws import Agent_nlp
-from web_agent.agent import get_agents, run_agent
+from Agents.nlp_agent.agent_ws import Agent_nlp
+from Agents.web_agent.agent import get_agents, run_agent
 from utils import candidates_to_products  # твоя функция-обёртка над get_saved_candidates()
 
 logger = logging.getLogger("adapter")

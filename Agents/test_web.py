@@ -1,5 +1,5 @@
-from web_agent.agent import run_agent, get_agents
-from web_agent.web_tools import close_session, get_saved_candidates
+from Agents.web_agent.agent import run_agent, get_agents
+from Agents.web_agent.web_tools import close_session, get_saved_candidates
 
 MAX_HISTORY_CHARS = 2000
 

@@ -136,8 +136,8 @@ def main():
                         help="Дополнительно исключить директорию по имени (можно несколько).")
     args = parser.parse_args()
 
-    args.root = ""
-    args.output = "project_dump.txt"
+    args.root = "Agents"
+    args.output = "agents_dump.txt"
     root = Path(args.root).resolve()
     if not root.exists():
         print(f"Путь не найден: {root}", file=sys.stderr)

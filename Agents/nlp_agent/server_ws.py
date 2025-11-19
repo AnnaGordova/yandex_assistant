@@ -5,7 +5,7 @@ import json
 import traceback
 from websockets import serve
 
-from Agent_NLP.agent_ws import Agent_nlp
+from Agents.nlp_agent.agent_ws import Agent_nlp
 
 agent = None
 

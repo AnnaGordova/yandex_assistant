@@ -1,9 +1,9 @@
 # test_price_filter.py
 import json5
 
-from web_agent.agent import get_agents
-from web_agent.web_tools import init_session, SaveCandidateTool
-from web_agent.web_tools.web_tools import WebAgent  # только ради type hints, можно не импортить
+from Agents.web_agent.agent import get_agents
+from Agents.web_agent.web_tools import init_session, SaveCandidateTool
+from Agents.web_agent.web_tools.web_tools import WebAgent  # только ради type hints, можно не импортить
 
 def test_save_cand():
     agent: WebAgent = init_session(

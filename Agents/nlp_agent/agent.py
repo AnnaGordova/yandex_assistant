@@ -1,6 +1,6 @@
 from openai import OpenAI
-from Agent_NLP.system_prompt import TEXT_SYSTEM_PROMPT
-from Agent_NLP.utils import parse_agent_response
+from Agents.nlp_agent.system_prompt import TEXT_SYSTEM_PROMPT
+from Agents.nlp_agent.utils import parse_agent_response
 
 
 class Agent_nlp:
@@ -60,6 +60,7 @@ class Agent_nlp:
 
         user_query = input("\nQ: ")
         parsed = self.generate(user_query, dialog_history=dialog)
+        print(parsed)
         dialog.append({"role": "user", "content": user_query})
 
         while parsed['status'] == 'questions':

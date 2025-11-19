@@ -1,6 +1,6 @@
 from openai import OpenAI
-from Agent_NLP.system_prompt import TEXT_SYSTEM_PROMPT
-from Agent_NLP.utils import parse_agent_response
+from Agents.nlp_agent.system_prompt import TEXT_SYSTEM_PROMPT
+from Agents.nlp_agent.utils import parse_agent_response
 
 
 class Agent_nlp:
@@ -20,7 +20,7 @@ class Agent_nlp:
             )
 
         connect_vllm_api()
-        print("Agent_NLP connected")
+        print("nlp_agent connected")
 
     def _raw_call(self, messages):
         """Вызов модели + парсинг ответа в dict."""

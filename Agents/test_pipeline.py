@@ -1,9 +1,9 @@
 import textwrap
 from dataclasses import dataclass, field
 from typing import List, Dict, Literal, Optional
-from Agent_NLP.agent_ws import Agent_nlp        # NLP-агент (у тебя уже есть)
-from web_agent.agent import get_agents, run_agent  # Web-агент (поход на маркетплейс)
-from web_agent.web_tools import get_saved_candidates
+from Agents.nlp_agent.agent_ws import Agent_nlp        # NLP-агент (у тебя уже есть)
+from Agents.web_agent.agent import get_agents, run_agent  # Web-агент (поход на маркетплейс)
+from Agents.web_agent.web_tools import get_saved_candidates
 
 Phase = Literal["nlp", "web"]
 
@@ -160,11 +160,7 @@ class MinimalAdapter:
                 f"{web_result_text}\n"
             )
             all_results.append(block)
-            candidates = get_saved_candidates()
-            print(candidates)
-            urls = [val['url'] for val in candidates.values()]
-            agent, web_agent = get_agents(show_browser=True)
-            share_url = web_agent.add_products_to_cart_and_get_share_link(urls, clear_before=True)
+
 
         # Итоговый текст: подряд результаты по всем вещам
         return "\n\n".join(all_results)
@@ -190,6 +186,10 @@ def main():
         print("\nАдаптер:", answer)
         print("\n" + "=" * 80 + "\n")
 
-
+    candidates = get_saved_candidates()
+    print(candidates)
+    urls = [val['url'] for val in candidates.values()]
+    agent, web_agent = get_agents(show_browser=True)
+    share_url = web_agent.add_products_to_cart_and_get_share_link(urls, clear_before=True)
 if __name__ == "__main__":
     main()

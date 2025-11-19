@@ -8,7 +8,7 @@ from datetime import datetime
 
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PlaywrightTimeoutError, Locator
 
-from web_agent.web_tools.utils import _draw_click_marker, get_screen_size
+from Agents.web_agent.web_tools.utils import _draw_click_marker, get_screen_size
 
 _WEB_AGENT_SINGLETON: Optional["WebAgent"] = None
 AUTH_STATE_PATH =  Path(__file__).parents[1]/Path("auth/yandex_state.json")
@@ -149,7 +149,7 @@ class WebAgent:
 
         if new_page is not None:
             try:
-                new_page.wait_for_load_state("domcontentloaded", timeout=8000)
+                new_page.wait_for_load_state("domcontentloaded", timeout=4000)
             except PlaywrightTimeoutError:
                 pass
 
@@ -160,7 +160,7 @@ class WebAgent:
                 pass
             if target_url:
                 try:
-                    self.page.goto(target_url, wait_until="domcontentloaded", timeout=8000)
+                    self.page.goto(target_url, wait_until="domcontentloaded", timeout=4000)
                     # try:
                     #     self.page.wait_for_load_state("networkidle", timeout=5000)
                     # except PlaywrightTimeoutError:
@@ -171,7 +171,7 @@ class WebAgent:
             # Навигация в той же вкладке или просто клик по фильтру
             try:
                 # если клик действительно триггерит загрузку, поймаем её
-                self.page.wait_for_load_state("domcontentloaded", timeout=2000)
+                self.page.wait_for_load_state("domcontentloaded", timeout=1000)
             except PlaywrightTimeoutError:
                 pass
 
@@ -225,7 +225,7 @@ class WebAgent:
 
     def go_back_and_screenshot(self) -> Path:
         try:
-            self.page.go_back(wait_until="domcontentloaded", timeout=15000)
+            self.page.go_back(wait_until="domcontentloaded", timeout=4000)
         except Exception:
             # если назад нельзя – просто остаёмся
             pass
@@ -316,7 +316,7 @@ class WebAgent:
         """
 
         def _fill(locator: Locator, value: int):
-            self.page.wait_for_load_state("domcontentloaded", timeout=5000)
+            self.page.wait_for_load_state("domcontentloaded", timeout=2000)
             locator.click()
             # на всякий случай подчистим поле
             locator.press("Control+A")
@@ -359,7 +359,7 @@ class WebAgent:
                     print("set_price_filter: max input not found")
 
             try:
-                self.page.wait_for_load_state("domcontentloaded", timeout=5000)
+                self.page.wait_for_load_state("domcontentloaded", timeout=2000)
             except PlaywrightTimeoutError:
                 pass
             self.page.wait_for_timeout(200)
