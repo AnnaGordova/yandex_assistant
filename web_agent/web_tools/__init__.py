@@ -75,7 +75,17 @@ class SaveCandidateTool(BaseTool):
         "- product_name: product title used to locate the image on the page,\n"
         "- url: current product page URL (taken automatically),\n"
         "- image_url: URL of the product image (if found),\n"
-        "- description: a JSON object with detailed product attributes (price, size, rating, etc.)."
+        "- description: JSON string with detailed product attributes.\n"
+        "\n"
+        "The 'description' STRING *MUST* be a valid JSON object with the following fields:\n"
+        "- price: number (final price in RUB),\n"
+        "- rating: number from 0 to 5,\n"
+        "- ammountOfReviews: integer, number of reviews,\n"
+        "- size: string with the selected size (or \"\" if not applicable),\n"
+        "- countOfProduct: integer, how many items (usually 1),\n"
+        "- reason: short text explaining why this product fits the user.\n"
+        "You MAY add extra fields, but the keys above are REQUIRED and must use these exact names.\n"
+        "Always send valid JSON here, never free-form text."
     )
 
     parameters = [
@@ -94,8 +104,11 @@ class SaveCandidateTool(BaseTool):
             "required": True,
             "description": (
                 "JSON string with a structured description of the product. "
-                "It SHOULD include fields like price, rating, reviews, size, color, fabric, "
-                "and a 'reason' explaining why this product fits the user request."
+                "It MUST include: price, rating, ammountOfReviews, size, countOfProduct, reason. "
+                "Example: "
+                "{\"price\": 2499.0, \"rating\": 4.7, \"ammountOfReviews\": 123, "
+                "\"size\": \"M\", \"countOfProduct\": 1, "
+                "\"reason\": \"Лёгкие шорты до колена, подходят для прогулок летом\"}."
             ),
         },
         {
