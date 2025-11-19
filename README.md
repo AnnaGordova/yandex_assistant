@@ -9,9 +9,9 @@
 
 ## Архитектура работы cистемы
 
-<div align="center"><img src="readme_pictures\Agent.PNG" width="50%" /></div>
+<div align="center"><img src="readme_pictures\system.jpg" width="50%" /></div>
 
 ## Архитектура работы ML-пайплайна 
 
-<div align="center"><img src="readme_pictures\system.JPG" width="50%" /></div>
+<div align="center"><img src="readme_pictures\Agent.PNG" width="50%" /></div>
 
